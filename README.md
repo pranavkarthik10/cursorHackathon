@@ -29,7 +29,14 @@ The Supabase service role key is server-only. Browser auth uses the publishable 
 
 ## Supabase
 
-Run the SQL in `supabase/schema.sql` against the Supabase project before publishing or searching.
+Initialize the database (enable the **vector** extension in the Dashboard first, then):
+
+```bash
+# Add DATABASE_URL (Postgres URI, port 5432) to .env, then:
+npm run db:init
+```
+
+Alternatively, paste `supabase/schema.sql` into the SQL Editor and run it. With the CLI linked to the project (`supabase login` then `supabase link`), run `npm run db:push`.
 
 The MVP uses one `insights` table with:
 

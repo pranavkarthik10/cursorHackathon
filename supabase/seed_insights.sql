@@ -1,4 +1,4 @@
--- Mock insights for demos. Run in Supabase SQL Editor (requires schema from schema.sql).
+-- Mock insights for demos. Run in Supabase SQL Editor after schema is applied (`npm run db:init` or `supabase db push`).
 --
 -- Community catalog (global scope): public + team rows — visible to everyone.
 -- Personal ("My insights"): set :personal_user to your auth.users.id and uncomment the second INSERT block,

@@ -2,8 +2,10 @@
  * Seeds mock insights: community (public + team) and optional personal rows
  * for the authenticated user id in SEED_PERSONAL_USER_ID.
  *
+ * Apply schema first: `npm run db:init` (needs DATABASE_URL) or paste `supabase/schema.sql` in the SQL Editor.
+ *
  * Run from repo root:
- *   node --env-file=.env scripts/seed-insights.mjs
+ *   npm run seed:insights
  *
  * Get your user UUID from Supabase → Authentication → Users, or from the JWT `sub`.
  */

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Globe, Loader2, LogOut, Search, User } from "lucide-react";
+import { Building2, Globe, Lock, LogOut, Search, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,16 +17,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+
+type Visibility = "public" | "org" | "team" | "private";
 
 type SearchResult = {
   id: string;
@@ -40,6 +35,74 @@ type SearchResult = {
 };
 
 type Scope = "global" | "mine";
+
+const VISIBILITY_META: Record<
+  Visibility,
+  {
+    label: string;
+    icon: typeof Globe;
+    dot: string;
+    pill: string;
+    description: string;
+  }
+> = {
+  public: {
+    label: "Public",
+    icon: Globe,
+    dot: "bg-emerald-500",
+    pill: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
+    description: "Everyone in the catalog"
+  },
+  org: {
+    label: "Org",
+    icon: Building2,
+    dot: "bg-sky-500",
+    pill: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20",
+    description: "Your organization"
+  },
+  team: {
+    label: "Team",
+    icon: Users,
+    dot: "bg-amber-500",
+    pill: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
+    description: "Your team"
+  },
+  private: {
+    label: "Private",
+    icon: Lock,
+    dot: "bg-zinc-500",
+    pill: "bg-zinc-500/10 text-zinc-700 dark:text-zinc-300 border-zinc-500/20",
+    description: "Only you"
+  }
+};
+
+const VISIBILITY_ORDER: Visibility[] = ["public", "org", "team", "private"];
+
+function isVisibility(value: string): value is Visibility {
+  return value === "public" || value === "org" || value === "team" || value === "private";
+}
+
+function VisibilityBadge({ value }: { value: string }) {
+  const meta = isVisibility(value) ? VISIBILITY_META[value] : null;
+  if (!meta) {
+    return (
+      <Badge className="gap-1.5 border-border bg-secondary font-mono text-[10px] font-normal uppercase">
+        {value}
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      className={cn(
+        "gap-1.5 border font-mono text-[10px] font-normal uppercase tracking-wide",
+        meta.pill
+      )}
+    >
+      <span className={cn("inline-block size-1.5 rounded-full", meta.dot)} aria-hidden />
+      {meta.label}
+    </Badge>
+  );
+}
 
 function profileInitials(email: string, displayName?: string): string {
   const name = displayName?.trim();
@@ -71,9 +134,7 @@ export function DashboardClient({
   queryRef.current = query;
 
   const [scope, setScope] = useState<Scope>("global");
-  const [visibilityFilter, setVisibilityFilter] = useState<"all" | "public" | "team" | "private">(
-    "all"
-  );
+  const [visibilityFilter, setVisibilityFilter] = useState<Visibility[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -95,8 +156,8 @@ export function DashboardClient({
       }
       params.set("scope", scope);
       params.set("limit", "50");
-      if (visibilityFilter !== "all") {
-        params.set("visibility", visibilityFilter);
+      if (visibilityFilter.length > 0 && visibilityFilter.length < VISIBILITY_ORDER.length) {
+        params.set("visibility", visibilityFilter.join(","));
       }
 
       const response = await fetch(`/api/insights/search?${params}`, {
@@ -122,6 +183,16 @@ export function DashboardClient({
   useEffect(() => {
     void fetchResults(queryRef.current);
   }, [scope, visibilityFilter, fetchResults]);
+
+  const visibleVisibilities: Visibility[] =
+    scope === "mine" ? VISIBILITY_ORDER : VISIBILITY_ORDER.filter((v) => v !== "private");
+
+  useEffect(() => {
+    setVisibilityFilter((prev) => prev.filter((v) => visibleVisibilities.includes(v)));
+  }, [scope]);
+
+  const visibilityFilterActive =
+    visibilityFilter.length > 0 && visibilityFilter.length < visibleVisibilities.length;
 
   const selected = results.find((r) => r.id === selectedId) ?? null;
 
@@ -161,19 +232,7 @@ export function DashboardClient({
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="button"
-              size="icon"
-              variant="secondary"
-              className="size-9 shrink-0 rounded-lg shadow-none"
-              onClick={() => void fetchResults(query)}
-              disabled={loading}
-              aria-label="Run search"
-            >
-              {loading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-            </Button>
-
+          <div className="flex shrink-0 items-center">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -229,24 +288,45 @@ export function DashboardClient({
 
           <Separator orientation="vertical" className="hidden h-6 sm:block" />
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Visibility</span>
-            <Select
+            <ToggleGroup
+              type="multiple"
               value={visibilityFilter}
               onValueChange={(v) =>
-                setVisibilityFilter(v as "all" | "public" | "team" | "private")
+                setVisibilityFilter(v.filter(isVisibility) as Visibility[])
               }
+              className="inline-flex h-9 items-center rounded-lg border border-border/80 bg-secondary/40 p-1"
+              size="sm"
+              aria-label="Filter by visibility"
             >
-              <SelectTrigger className="h-9 w-[132px] border-border/80 bg-secondary/40 text-xs shadow-none">
-                <SelectValue placeholder="Filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="public">Public</SelectItem>
-                <SelectItem value="team">Team</SelectItem>
-                <SelectItem value="private">Private</SelectItem>
-              </SelectContent>
-            </Select>
+              {visibleVisibilities.map((v) => {
+                const meta = VISIBILITY_META[v];
+                const Icon = meta.icon;
+                return (
+                  <ToggleGroupItem
+                    key={v}
+                    value={v}
+                    aria-label={`${meta.label} — ${meta.description}`}
+                    className="h-7 gap-1.5 rounded-md px-2.5 text-xs"
+                  >
+                    <Icon className="size-3.5" aria-hidden />
+                    {meta.label}
+                  </ToggleGroupItem>
+                );
+              })}
+            </ToggleGroup>
+            {visibilityFilterActive ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setVisibilityFilter([])}
+              >
+                Clear
+              </Button>
+            ) : null}
           </div>
 
           <p className="ml-auto text-xs text-muted-foreground">
@@ -298,7 +378,7 @@ export function DashboardClient({
                         <span className="line-clamp-2">{row.environment ?? "—"}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge className="font-mono text-[10px] font-normal uppercase">{row.visibility}</Badge>
+                        <VisibilityBadge value={row.visibility} />
                       </td>
                       <td className="hidden whitespace-nowrap px-4 py-3 text-muted-foreground lg:table-cell">
                         {formatDate(row.created_at)}
@@ -323,7 +403,7 @@ export function DashboardClient({
                     <p className="text-xs font-medium text-muted-foreground">Detail</p>
                     <h2 className="mt-2 text-base font-semibold leading-snug tracking-tight">{selected.title}</h2>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Badge className="font-mono text-[10px] font-normal uppercase">{selected.visibility}</Badge>
+                      <VisibilityBadge value={selected.visibility} />
                       <span className="text-xs text-muted-foreground">{formatDate(selected.created_at)}</span>
                     </div>
                   </div>

@@ -35,3 +35,48 @@ body {
   background: rgba(125, 211, 252, 0.28);
 }
 
+@keyframes hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-soft {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.hero-animate {
+  animation: hero-in 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+}
+
+.hero-animate-delay-1 {
+  animation-delay: 0.08s;
+}
+
+.hero-animate-delay-2 {
+  animation-delay: 0.16s;
+}
+
+.hero-animate-delay-3 {
+  animation-delay: 0.24s;
+}
+
+.hero-animate-delay-4 {
+  animation-delay: 0.32s;
+}
+
+.hero-backdrop {
+  animation: hero-soft 1.2s ease-out forwards;
+}
+

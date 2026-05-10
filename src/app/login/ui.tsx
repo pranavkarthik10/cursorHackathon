@@ -23,18 +23,35 @@ export function AuthForm() {
   }
 
   return (
-    <div className="mt-6 space-y-3">
-      <Input
-        type="email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        placeholder="you@example.com"
-      />
-      <Button className="w-full" onClick={signIn} disabled={!email.trim()}>
+    <form
+      className="mt-8 space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void signIn();
+      }}
+    >
+      <div className="space-y-2">
+        <label htmlFor="login-email" className="text-sm font-medium text-foreground">
+          Email
+        </label>
+        <Input
+          id="login-email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@example.com"
+          className="h-11 bg-background/60 backdrop-blur-sm"
+        />
+      </div>
+      <Button className="h-11 w-full" type="submit" disabled={!email.trim()}>
         Send magic link
       </Button>
-      {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
-    </div>
+      {status ? (
+        <p className="text-sm leading-relaxed text-muted-foreground" role="status">
+          {status}
+        </p>
+      ) : null}
+    </form>
   );
 }
-

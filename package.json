@@ -6,7 +6,8 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:insights": "node --env-file=.env scripts/seed-insights.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

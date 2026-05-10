@@ -72,6 +72,48 @@ For hackathon speed, prefer:
 
 Keep infrastructure simple until the demo loop is strong.
 
+## Task Clusters
+
+Split the build into clear clusters so work can move quickly without turning the hackathon into infrastructure soup.
+
+1. CLI spine
+
+Build `agent-insights` first. It should provide the core commands `init`, `publish`, and `search`. This proves the product is agent-native instead of only being a web form.
+
+2. Insight extraction
+
+Take transcript or session text and produce the tiny MVP insight card. Run redaction before preview or upload.
+
+3. Storage and search
+
+Use Supabase Postgres with an `insights` table, a pgvector embedding column, simple keyword or full-text search, and a hybrid search path.
+
+4. Web app
+
+Build a lightweight dashboard with publish/preview, search, and insight detail views. The web app should mirror the CLI flow instead of becoming a separate product.
+
+5. Agent integration
+
+Make the product easy for coding agents to call at session end. Include a session-end hook pattern, a "looks solved, publish?" prompt, local config, and sample usage docs for tools like Codex, Claude Code, and Cursor.
+
+6. Trust and privacy
+
+Add MVP guardrails: secret redaction, preview before upload, visibility controls, and no raw transcript upload by default.
+
+7. Demo data and pitch flow
+
+Seed a few realistic niche issues, such as Next.js/Vercel runtime errors, pnpm workspace resolution errors, and package/version mismatch errors. The demo should show publishing a solved session, searching from a similar stuck issue, and getting the fix back.
+
+Preferred implementation order:
+
+1. CLI
+2. Minimal schema
+3. Extract insight
+4. Store and search
+5. Web UI
+6. Privacy polish
+7. Demo polish
+
 ## Repository Workflow
 
 Commit and create pull requests for all meaningful changes.

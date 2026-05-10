@@ -6,7 +6,8 @@ import {
   defaultConfigPath,
   loadConfig,
   normalizeApiUrl,
-  saveConfig
+  saveConfig,
+  type AgentInsightsConfig
 } from "./config.js";
 import { loginViaBrowser } from "./cli-login-browser.js";
 import { buildStructuredInsight, extractInsight } from "./insight.js";
@@ -130,7 +131,17 @@ async function finishLogin(
 }
 
 async function logoutAction() {
-  const config = loadConfig();
+  let config: AgentInsightsConfig | null = null;
+  try {
+    config = loadConfig();
+  } catch {
+    console.log("No configuration found. Nothing to remove.");
+    return;
+  }
+  if (!config.accessToken) {
+    console.log("No access token was stored.");
+    return;
+  }
   saveConfig({ apiUrl: config.apiUrl });
   console.log("Removed stored access token.");
 }

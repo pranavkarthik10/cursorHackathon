@@ -7,8 +7,8 @@ import { z } from "zod";
 loadDotenv();
 
 const configSchema = z.object({
-  supabaseUrl: z.string().url(),
-  supabaseServiceRoleKey: z.string().min(1)
+  apiUrl: z.string().url(),
+  accessToken: z.string().min(1).optional()
 });
 
 export type AgentInsightsConfig = z.infer<typeof configSchema>;
@@ -21,9 +21,8 @@ export function loadConfig(configPath = defaultConfigPath): AgentInsightsConfig 
     : {};
 
   return configSchema.parse({
-    supabaseUrl: process.env.SUPABASE_URL ?? fileConfig.supabaseUrl,
-    supabaseServiceRoleKey:
-      process.env.SUPABASE_SERVICE_ROLE_KEY ?? fileConfig.supabaseServiceRoleKey
+    apiUrl: process.env.AGENT_INSIGHTS_API_URL ?? fileConfig.apiUrl,
+    accessToken: process.env.AGENT_INSIGHTS_ACCESS_TOKEN ?? fileConfig.accessToken
   });
 }
 
@@ -32,4 +31,3 @@ export function saveConfig(config: AgentInsightsConfig, configPath = defaultConf
     mode: 0o600
   });
 }
-

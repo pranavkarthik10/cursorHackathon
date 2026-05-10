@@ -5,7 +5,6 @@ import { z } from "zod";
 import { defaultConfigPath, loadConfig, saveConfig } from "./config.js";
 import { extractInsight } from "./insight.js";
 import { readInput } from "./io.js";
-import { createSupabaseClient } from "./supabase.js";
 import type { InsightCard, InsightRow, Visibility } from "./types.js";
 
 const visibilitySchema = z.enum(["private", "team", "public"]);
@@ -18,31 +17,31 @@ program
   .version("0.1.0");
 
 program
-  .command("init")
-  .description("Save Supabase credentials for the CLI")
-  .option("--url <url>", "Supabase project URL")
-  .option("--service-role-key <key>", "Supabase service role key")
-  .action(async (options: { url?: string; serviceRoleKey?: string }) => {
+  .command("auth")
+  .description("Save an API URL and Supabase access token for the CLI")
+  .option("--api-url <url>", "Coding Agent Insights app URL")
+  .option("--token <token>", "Supabase user access token")
+  .action(async (options: { apiUrl?: string; token?: string }) => {
     const answers = await inquirer.prompt([
       {
-        name: "supabaseUrl",
+        name: "apiUrl",
         type: "input",
-        message: "Supabase URL",
-        when: !options.url
+        message: "App API URL",
+        default: "http://localhost:3000",
+        when: !options.apiUrl
       },
       {
-        name: "supabaseServiceRoleKey",
-        message: "Supabase service role key",
+        name: "accessToken",
+        message: "Supabase access token",
         type: "password",
         mask: "*",
-        when: !options.serviceRoleKey
+        when: !options.token
       }
     ]);
 
     saveConfig({
-      supabaseUrl: options.url ?? answers.supabaseUrl,
-      supabaseServiceRoleKey:
-        options.serviceRoleKey ?? answers.supabaseServiceRoleKey
+      apiUrl: options.apiUrl ?? answers.apiUrl,
+      accessToken: options.token ?? answers.accessToken
     });
 
     console.log(`Saved config to ${defaultConfigPath}`);
@@ -97,18 +96,25 @@ program
         }
       }
 
-      const supabase = createSupabaseClient();
-      const { data, error } = await supabase
-        .from("insights")
-        .insert(card)
-        .select("id,title")
-        .single();
+      const config = loadConfig();
+      const response = await fetch(`${config.apiUrl}/api/insights/publish`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${requireToken(config.accessToken)}`
+        },
+        body: JSON.stringify({
+          transcript: input,
+          visibility: card.visibility
+        })
+      });
+      const payload = await response.json();
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Publish failed");
       }
 
-      console.log(`Published insight ${data.id}: ${data.title}`);
+      console.log(`Published insight ${payload.insight.id}: ${payload.insight.title}`);
     }
   );
 
@@ -130,18 +136,24 @@ program
         throw new Error("No search query provided. Pass text, --file, or stdin.");
       }
 
-      const supabase = createSupabaseClient();
       const limit = Number.parseInt(options.limit, 10);
-      const { data, error } = await supabase.rpc("search_insights", {
-        search_query: searchQuery,
-        result_limit: Number.isFinite(limit) ? limit : 5
-      });
+      const config = loadConfig();
+      const url = new URL("/api/insights/search", config.apiUrl);
+      url.searchParams.set("q", searchQuery);
+      url.searchParams.set("limit", String(Number.isFinite(limit) ? limit : 5));
 
-      if (error) {
-        throw error;
+      const response = await fetch(url, {
+        headers: {
+          authorization: `Bearer ${requireToken(config.accessToken)}`
+        }
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Search failed");
       }
 
-      printResults((data ?? []) as InsightRow[]);
+      printResults((payload.results ?? []) as InsightRow[]);
     }
   );
 
@@ -150,8 +162,8 @@ program
   .description("Check local CLI configuration")
   .action(() => {
     const config = loadConfig();
-    console.log(`Supabase URL: ${config.supabaseUrl}`);
-    console.log("Supabase service role key: configured");
+    console.log(`API URL: ${config.apiUrl}`);
+    console.log(`Access token: ${config.accessToken ? "configured" : "missing"}`);
   });
 
 program.parseAsync().catch((error: unknown) => {
@@ -194,4 +206,12 @@ function printResults(results: InsightRow[]) {
 
 function oneLine(value: string) {
   return value.replace(/\s+/g, " ").trim().slice(0, 240);
+}
+
+function requireToken(token: string | undefined) {
+  if (!token) {
+    throw new Error("Run agent-insights auth first or set AGENT_INSIGHTS_ACCESS_TOKEN.");
+  }
+
+  return token;
 }

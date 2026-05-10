@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/cli.ts",
+    "src/config.ts",
+    "src/insight.ts",
+    "src/io.ts",
+    "src/types.ts"
+  ]
+}

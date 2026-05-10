@@ -7,6 +7,7 @@ create table if not exists public.insights (
   environment text,
   fix text not null,
   visibility text not null default 'private' check (visibility in ('private', 'team', 'public')),
+  created_by uuid references auth.users(id) on delete set null,
   embedding vector(1536),
   search_vector tsvector generated always as (
     setweight(to_tsvector('english', coalesce(title, '')), 'A') ||

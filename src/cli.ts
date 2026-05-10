@@ -9,7 +9,7 @@ import {
   saveConfig
 } from "./config.js";
 import { loginViaBrowser } from "./cli-login-browser.js";
-import { extractInsight } from "./insight.js";
+import { buildStructuredInsight, extractInsight } from "./insight.js";
 import { readInput } from "./io.js";
 import type { InsightCard, InsightRow, Visibility } from "./types.js";
 
@@ -161,8 +161,14 @@ program
 
 program
   .command("publish")
-  .description("Extract, preview, and publish an insight from a session transcript")
-  .option("-f, --file <path>", "Read transcript from a file")
+  .description(
+    "Publish an insight: pipe a transcript, or pass --title/--problem/--fix (optional --environment)"
+  )
+  .option("-f, --file <path>", "Read transcript from a file (transcript mode only)")
+  .option("--title <text>", "Structured insight title (requires --problem and --fix)")
+  .option("--problem <text>", "Structured problem description")
+  .option("--environment <text>", "Structured environment/stack (optional)")
+  .option("--fix <text>", "Structured fix")
   .option(
     "-v, --visibility <visibility>",
     "private, team, org, or public",
@@ -176,17 +182,73 @@ program
       visibility: string;
       dryRun?: boolean;
       yes?: boolean;
+      title?: string;
+      problem?: string;
+      environment?: string;
+      fix?: string;
     }) => {
       const visibility = visibilitySchema.parse(options.visibility) as Visibility;
-      const input = await readInput(options.file);
 
-      if (!input.trim()) {
+      const structKeys = [
+        options.title !== undefined,
+        options.problem !== undefined,
+        options.fix !== undefined,
+        options.environment !== undefined
+      ].filter(Boolean).length;
+
+      const fullyStructured =
+        options.title !== undefined &&
+        options.problem !== undefined &&
+        options.fix !== undefined;
+
+      if (structKeys > 0 && !fullyStructured) {
         throw new Error(
-          "No transcript provided. Pass --file or pipe text into stdin."
+          "Structured publish requires --title, --problem, and --fix together (optional --environment)."
         );
       }
 
-      const card = extractInsight(input, visibility);
+      if (fullyStructured && options.file) {
+        throw new Error("Do not use --file with structured publish; use transcript mode or structured flags only.");
+      }
+
+      let card: InsightCard;
+      let publishBody:
+        | { transcript: string; visibility: Visibility }
+        | {
+            title: string;
+            problem: string;
+            environment: string;
+            fix: string;
+            visibility: Visibility;
+          };
+
+      if (fullyStructured) {
+        card = buildStructuredInsight({
+          title: options.title!,
+          problem: options.problem!,
+          environment: options.environment ?? "",
+          fix: options.fix!,
+          visibility
+        });
+        publishBody = {
+          title: card.title,
+          problem: card.problem,
+          environment: card.environment,
+          fix: card.fix,
+          visibility: card.visibility
+        };
+      } else {
+        const input = await readInput(options.file);
+        if (!input.trim()) {
+          throw new Error(
+            "No content provided. Pipe a transcript, use --file, or pass --title, --problem, and --fix."
+          );
+        }
+
+        card = extractInsight(input, visibility);
+        publishBody = { transcript: input, visibility: card.visibility };
+      }
+
       printCard(card);
 
       if (options.dryRun) {
@@ -219,10 +281,7 @@ program
             "content-type": "application/json",
             authorization: `Bearer ${requireToken(config.accessToken)}`
           },
-          body: JSON.stringify({
-            transcript: input,
-            visibility: card.visibility
-          })
+          body: JSON.stringify(publishBody)
         }
       );
       const payload = (await response.json()) as {

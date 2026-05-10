@@ -3,9 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "agent-insights": "./dist/cli.js"
+  },
   "scripts": {
-    "build": "next build",
+    "build": "npm run build:cli && next build",
+    "build:cli": "tsc -p tsconfig.cli.json",
     "dev": "next dev",
+    "dev:cli": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "db:init": "node --env-file=.env scripts/db-init.mjs",
     "db:push": "npx supabase db push",
@@ -25,8 +30,12 @@
     "@tailwindcss/postcss": "^4.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "inquirer": "^12.5.2",
     "lucide-react": "^1.14.0",
     "next": "^16.2.6",
+    "open": "^10.2.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "tailwind-merge": "^3.6.0",
@@ -38,6 +47,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "postgres": "^3.4.5",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.3"
   }
 }

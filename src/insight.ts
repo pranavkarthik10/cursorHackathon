@@ -41,6 +41,37 @@ export function extractInsight(input: string, visibility: Visibility): InsightCa
   };
 }
 
+/** When title/problem/environment/fix are already provided (agents, structured CLI); still redacts. */
+export function buildStructuredInsight(input: {
+  title: string;
+  problem: string;
+  environment: string;
+  fix: string;
+  visibility: Visibility;
+}): InsightCard {
+  const titleRaw = redact(input.title).trim();
+  const title =
+    (titleRaw.slice(0, 500) || "Untitled").replace(/\n{3,}/g, "\n\n");
+
+  const problem = clampStructured(redact(input.problem), 12_000);
+  const environment =
+    clampStructured(redact(input.environment), 4_000).trim() || "Unknown";
+  const fix = clampStructured(redact(input.fix), 12_000);
+
+  return {
+    title,
+    problem,
+    environment,
+    fix,
+    visibility: input.visibility
+  };
+}
+
+function clampStructured(text: string, max: number) {
+  const t = text.replace(/\n{3,}/g, "\n\n").trim();
+  return t.length <= max ? t : `${t.slice(0, max)}…`;
+}
+
 function findLabeledValue(lines: string[], labels: string[]) {
   for (const line of lines) {
     for (const label of labels) {

@@ -5,17 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export function AuthForm() {
+export function AuthForm({ postLoginPath = "/" }: { postLoginPath?: string }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("");
 
   async function signIn() {
     setStatus("Sending magic link...");
+    const safeNext = postLoginPath.startsWith("/") ? postLoginPath : "/";
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`
       }
     });
 

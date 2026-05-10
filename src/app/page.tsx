@@ -63,7 +63,7 @@ export default async function HomePage() {
           <ul className="mt-12 max-w-2xl space-y-0 divide-y divide-border/80 border-y border-border/80">
             {[
               { title: "Sign in", body: "Email magic link. Same session backs bearer-token API calls.", icon: KeyRound },
-              { title: "Publish", body: "POST distilled cards from transcripts or notes.", icon: Terminal },
+              { title: "Publish", body: "POST a transcript or structured title/problem/fix fields.", icon: Terminal },
               { title: "Search", body: "GET hybrid search with your access token.", icon: Search }
             ].map(({ title, body, icon: Icon }) => (
               <li key={title} className="flex gap-4 py-6 first:pt-6">

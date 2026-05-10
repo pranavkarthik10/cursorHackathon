@@ -3,7 +3,7 @@ import type { InsightCard, Visibility } from "./types.js";
 const secretPatterns: RegExp[] = [
   /\b(?:sk|pk)_[A-Za-z0-9_]{20,}\b/g,
   /\bghp_[A-Za-z0-9_]{20,}\b/g,
-  /\bSUPABASE_(?:SERVICE_ROLE_KEY|ANON_KEY)=\S+/g,
+  /\b(?:NEXT_PUBLIC_)?SUPABASE_(?:SERVICE_ROLE_KEY|ANON_KEY|PUBLISHABLE_KEY)=\S+/g,
   /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g
 ];
 
@@ -101,4 +101,3 @@ function summarizeBlock(lines: string[]) {
 function clean(input: string) {
   return input.replace(/\n{3,}/g, "\n\n").trim();
 }
-

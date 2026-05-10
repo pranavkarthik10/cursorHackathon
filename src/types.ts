@@ -1,4 +1,6 @@
-export type Visibility = "private" | "team" | "public";
+export type Visibility = "private" | "team" | "org" | "public";
+
+export const VISIBILITIES: Visibility[] = ["public", "org", "team", "private"];
 
 export type InsightCard = {
   title: string;

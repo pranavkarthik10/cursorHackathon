@@ -3,21 +3,26 @@
 @theme inline {
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
-  --color-background: #0b0d10;
-  --color-foreground: #eef2f6;
-  --color-card: #101419;
-  --color-card-foreground: #eef2f6;
-  --color-primary: #7dd3fc;
-  --color-primary-foreground: #061016;
-  --color-secondary: #182029;
-  --color-secondary-foreground: #dce7f3;
-  --color-muted: #141a21;
-  --color-muted-foreground: #8c9aaa;
-  --color-accent: #1d2833;
-  --color-accent-foreground: #eef2f6;
-  --color-border: #25313d;
-  --color-input: #2a3541;
-  --color-ring: #7dd3fc;
+  --color-background: #09090b;
+  --color-foreground: #fafafa;
+  --color-card: #0c0c0e;
+  --color-card-foreground: #fafafa;
+  --color-popover: #0c0c0e;
+  --color-popover-foreground: #fafafa;
+  --color-primary: #0ea5e9;
+  --color-primary-foreground: #020617;
+  --color-secondary: #18181b;
+  --color-secondary-foreground: #fafafa;
+  --color-muted: #18181b;
+  --color-muted-foreground: #a1a1aa;
+  --color-accent: #27272a;
+  --color-accent-foreground: #fafafa;
+  --color-border: #27272a;
+  --color-input: #27272a;
+  --color-ring: #0ea5e9;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
 }
 
 * {
@@ -29,9 +34,22 @@ body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -40%, rgba(14, 165, 233, 0.12), transparent 55%),
+    linear-gradient(to bottom, transparent 0%, var(--color-background) 320px);
+  pointer-events: none;
 }
 
 ::selection {
-  background: rgba(125, 211, 252, 0.28);
+  background: rgba(14, 165, 233, 0.25);
 }
 

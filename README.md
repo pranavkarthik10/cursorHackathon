@@ -2,7 +2,7 @@
 
 Consent-first shared memory for coding agent sessions.
 
-## CLI
+## App
 
 Install dependencies:
 
@@ -16,57 +16,27 @@ Run the app:
 npm run dev
 ```
 
-Run the CLI in development:
-
-```bash
-npm run dev:cli -- --help
-```
-
 App/backend environment:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
-The CLI should not receive the Supabase service role key.
-
-Authenticate the CLI with the app API and a user access token:
-
-```bash
-npm run dev:cli -- auth --api-url http://localhost:3000 --token <supabase-access-token>
-```
-
-You can also use:
-
-```bash
-AGENT_INSIGHTS_API_URL=http://localhost:3000
-AGENT_INSIGHTS_ACCESS_TOKEN=...
-```
-
-Preview an insight without publishing:
-
-```bash
-cat session.txt | npm run dev:cli -- publish --dry-run --visibility private
-```
-
-Publish an insight:
-
-```bash
-cat session.txt | npm run dev:cli -- publish --visibility private
-```
-
-Search insights:
-
-```bash
-npm run dev:cli -- search "process is not defined in Next.js middleware"
-```
+The Supabase service role key is server-only. Browser auth uses the publishable key.
 
 ## Supabase
 
-Run the SQL in `supabase/schema.sql` against the Supabase project before publishing or searching.
+Initialize the database (enable the **vector** extension in the Dashboard first, then):
+
+```bash
+# Add DATABASE_URL (Postgres URI, port 5432) to .env, then:
+npm run db:init
+```
+
+Alternatively, paste `supabase/schema.sql` into the SQL Editor and run it. With the CLI linked to the project (`supabase login` then `supabase link`), run `npm run db:push`.
 
 The MVP uses one `insights` table with:
 
@@ -74,14 +44,31 @@ The MVP uses one `insights` table with:
 - `problem`
 - `environment`
 - `fix`
-- `visibility`
+- `visibility` — one of `public`, `org`, `team`, `private`
 - `embedding`
 
 Search currently uses Postgres full-text search. The `embedding` column is included so semantic search can be added without changing the core table shape.
 
+### Visibility scopes
+
+- **public** — Everyone in the catalog (default for community contributions)
+- **org** — Anyone in your organization
+- **team** — Your team only (subset of org)
+- **private** — Only you (default for new drafts)
+
+The **Global** scope returns `public + org + team`; **Mine** returns rows where `created_by = auth.uid()` (including `private`).
+
+### Seed mock data
+
+```bash
+npm run seed:insights
+```
+
+Set `SEED_PERSONAL_USER_ID` in `.env` (your `auth.users.id`) to also seed `private` + your owned rows.
+
 ## Backend API
 
-The CLI talks to the Next.js backend, not directly to Supabase:
+Clients should talk to the Next.js backend, not directly to privileged Supabase APIs:
 
 - `POST /api/insights/publish`
 - `GET /api/insights/search?q=...`

@@ -1,32 +1,5 @@
-create extension if not exists vector;
-
-create table if not exists public.insights (
-  id uuid primary key default gen_random_uuid(),
-  title text not null,
-  problem text not null,
-  environment text,
-  fix text not null,
-  visibility text not null default 'private' check (visibility in ('private', 'team', 'org', 'public')),
-  created_by uuid references auth.users(id) on delete set null,
-  embedding vector(1536),
-  search_vector tsvector generated always as (
-    setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(problem, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(environment, '')), 'C') ||
-    setweight(to_tsvector('english', coalesce(fix, '')), 'B')
-  ) stored,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists insights_search_idx on public.insights using gin (search_vector);
-create index if not exists insights_created_at_idx on public.insights (created_at desc);
-
--- Re-align the check constraint on existing databases (no-op on a fresh schema).
-alter table public.insights drop constraint if exists insights_visibility_check;
-alter table public.insights
-  add constraint insights_visibility_check
-  check (visibility in ('private', 'team', 'org', 'public'));
-
+-- Global catalog: show community public insights plus each caller's own rows only.
+-- Without team/org membership tables, non-public rows from other users stay hidden.
 create or replace function public.search_insights(
   search_query text,
   result_limit int default 5,
@@ -87,7 +60,6 @@ as $$
   limit result_limit;
 $$;
 
--- PostgREST / Supabase RPC (API uses service role; clients may use anon/authenticated later)
 grant execute on function public.search_insights(text, integer, text, uuid, text[])
   to anon, authenticated, service_role;
 

@@ -2,9 +2,17 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 
+function requirePublicEnv(name: "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`Missing required env var: ${name}`);
+  }
+  return value;
+}
+
 export function createSupabaseBrowserClient() {
   return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key"
+    requirePublicEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    requirePublicEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
   );
 }

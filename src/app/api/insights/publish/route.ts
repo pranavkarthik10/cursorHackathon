@@ -4,9 +4,11 @@ import { requireBearerUser } from "@/lib/api-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { extractInsight } from "@/insight";
 
+const MAX_TRANSCRIPT_CHARS = 512_000;
+
 const publishSchema = z.object({
-  transcript: z.string().min(1),
-  visibility: z.enum(["private", "team", "public"]).default("private")
+  transcript: z.string().min(1).max(MAX_TRANSCRIPT_CHARS),
+  visibility: z.enum(["private", "team", "org", "public"]).default("private")
 });
 
 export async function POST(request: Request) {

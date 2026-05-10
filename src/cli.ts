@@ -2,12 +2,17 @@
 import { Command } from "commander";
 import inquirer from "inquirer";
 import { z } from "zod";
-import { defaultConfigPath, loadConfig, saveConfig } from "./config.js";
+import {
+  defaultConfigPath,
+  loadConfig,
+  normalizeApiUrl,
+  saveConfig
+} from "./config.js";
 import { extractInsight } from "./insight.js";
 import { readInput } from "./io.js";
 import type { InsightCard, InsightRow, Visibility } from "./types.js";
 
-const visibilitySchema = z.enum(["private", "team", "public"]);
+const visibilitySchema = z.enum(["private", "team", "org", "public"]);
 
 const program = new Command();
 
@@ -16,36 +21,70 @@ program
   .description("Publish and search distilled coding-agent session insights")
   .version("0.1.0");
 
-program
+async function loginAction(options: { apiUrl?: string; token?: string }) {
+  const answers = await inquirer.prompt([
+    {
+      name: "apiUrl",
+      type: "input",
+      message: "App API URL (Next.js app serving /api)",
+      default: "http://localhost:3000",
+      when: !options.apiUrl
+    },
+    {
+      name: "accessToken",
+      message: "Supabase access token (JWT)",
+      type: "password",
+      mask: "*",
+      when: !options.token
+    }
+  ]);
+
+  const apiUrl = normalizeApiUrl(options.apiUrl ?? answers.apiUrl);
+  const accessToken = options.token ?? answers.accessToken;
+
+  saveConfig({ apiUrl, accessToken });
+
+  console.log(`Saved config to ${defaultConfigPath}`);
+  console.log(
+    "Tip: sign in at " +
+      new URL("/login", apiUrl).toString() +
+      ", then use a Supabase session access_token as the CLI credential."
+  );
+
+  try {
+    await verifySession(apiUrl, accessToken);
+  } catch {
+    console.warn(
+      "Could not verify the token with the API (offline or invalid token). Run `agent-insights doctor` after the app is up."
+    );
+  }
+}
+
+async function logoutAction() {
+  const config = loadConfig();
+  saveConfig({ apiUrl: config.apiUrl });
+  console.log("Removed stored access token.");
+}
+
+const authCmd = program
   .command("auth")
-  .description("Save an API URL and Supabase access token for the CLI")
+  .description("Manage CLI credentials for the Coding Agent Insights API");
+
+authCmd
+  .command("login", { isDefault: true })
+  .description("Save API URL and Supabase access token")
+  .option("--api-url <url>", "Coding Agent Insights app URL")
+  .option("--token <token>", "Supabase user access token (JWT)")
+  .action(loginAction);
+
+authCmd.command("logout").description("Remove the stored access token").action(logoutAction);
+
+program
+  .command("init")
+  .description("Configure API URL and credentials (same as `auth login`)")
   .option("--api-url <url>", "Coding Agent Insights app URL")
   .option("--token <token>", "Supabase user access token")
-  .action(async (options: { apiUrl?: string; token?: string }) => {
-    const answers = await inquirer.prompt([
-      {
-        name: "apiUrl",
-        type: "input",
-        message: "App API URL",
-        default: "http://localhost:3000",
-        when: !options.apiUrl
-      },
-      {
-        name: "accessToken",
-        message: "Supabase access token",
-        type: "password",
-        mask: "*",
-        when: !options.token
-      }
-    ]);
-
-    saveConfig({
-      apiUrl: options.apiUrl ?? answers.apiUrl,
-      accessToken: options.token ?? answers.accessToken
-    });
-
-    console.log(`Saved config to ${defaultConfigPath}`);
-  });
+  .action(loginAction);
 
 program
   .command("publish")
@@ -53,7 +92,7 @@ program
   .option("-f, --file <path>", "Read transcript from a file")
   .option(
     "-v, --visibility <visibility>",
-    "private, team, or public",
+    "private, team, org, or public",
     "private"
   )
   .option("--dry-run", "Preview the insight without publishing")
@@ -65,11 +104,13 @@ program
       dryRun?: boolean;
       yes?: boolean;
     }) => {
-      const visibility = visibilitySchema.parse(options.visibility);
+      const visibility = visibilitySchema.parse(options.visibility) as Visibility;
       const input = await readInput(options.file);
 
       if (!input.trim()) {
-        throw new Error("No transcript provided. Pass --file or pipe text into stdin.");
+        throw new Error(
+          "No transcript provided. Pass --file or pipe text into stdin."
+        );
       }
 
       const card = extractInsight(input, visibility);
@@ -97,24 +138,32 @@ program
       }
 
       const config = loadConfig();
-      const response = await fetch(`${config.apiUrl}/api/insights/publish`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${requireToken(config.accessToken)}`
-        },
-        body: JSON.stringify({
-          transcript: input,
-          visibility: card.visibility
-        })
-      });
-      const payload = await response.json();
+      const response = await fetch(
+        new URL("/api/insights/publish", config.apiUrl),
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${requireToken(config.accessToken)}`
+          },
+          body: JSON.stringify({
+            transcript: input,
+            visibility: card.visibility
+          })
+        }
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+        insight?: { id: string; title: string };
+      };
 
       if (!response.ok) {
         throw new Error(payload.error ?? "Publish failed");
       }
 
-      console.log(`Published insight ${payload.insight.id}: ${payload.insight.title}`);
+      console.log(
+        `Published insight ${payload.insight!.id}: ${payload.insight!.title}`
+      );
     }
   );
 
@@ -133,21 +182,29 @@ program
       const searchQuery = (query ?? fileInput).trim();
 
       if (!searchQuery) {
-        throw new Error("No search query provided. Pass text, --file, or stdin.");
+        throw new Error(
+          "No search query provided. Pass text, --file, or stdin."
+        );
       }
 
       const limit = Number.parseInt(options.limit, 10);
       const config = loadConfig();
       const url = new URL("/api/insights/search", config.apiUrl);
       url.searchParams.set("q", searchQuery);
-      url.searchParams.set("limit", String(Number.isFinite(limit) ? limit : 5));
+      url.searchParams.set(
+        "limit",
+        String(Number.isFinite(limit) ? limit : 5)
+      );
 
       const response = await fetch(url, {
         headers: {
           authorization: `Bearer ${requireToken(config.accessToken)}`
         }
       });
-      const payload = await response.json();
+      const payload = (await response.json()) as {
+        error?: string;
+        results?: InsightRow[];
+      };
 
       if (!response.ok) {
         throw new Error(payload.error ?? "Search failed");
@@ -159,11 +216,26 @@ program
 
 program
   .command("doctor")
-  .description("Check local CLI configuration")
-  .action(() => {
+  .description("Check local CLI configuration and API reachability")
+  .action(async () => {
     const config = loadConfig();
     console.log(`API URL: ${config.apiUrl}`);
-    console.log(`Access token: ${config.accessToken ? "configured" : "missing"}`);
+
+    if (!config.accessToken) {
+      console.log("Access token: missing (run `agent-insights auth login`)");
+      return;
+    }
+
+    console.log("Access token: configured");
+
+    try {
+      const me = await verifySession(config.apiUrl, config.accessToken);
+      console.log(`API session: ok (${me.user.email ?? me.user.id})`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`API session: failed (${message})`);
+      process.exitCode = 1;
+    }
   });
 
 program.parseAsync().catch((error: unknown) => {
@@ -171,6 +243,30 @@ program.parseAsync().catch((error: unknown) => {
   console.error(`agent-insights: ${message}`);
   process.exitCode = 1;
 });
+
+async function verifySession(apiUrl: string, token: string | undefined) {
+  if (!token) {
+    throw new Error("Missing access token");
+  }
+
+  const response = await fetch(new URL("/api/auth/me", apiUrl), {
+    headers: { authorization: `Bearer ${token}` }
+  });
+  const payload = (await response.json()) as {
+    error?: string;
+    user?: { id: string; email: string | null };
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? `HTTP ${response.status}`);
+  }
+
+  if (!payload.user) {
+    throw new Error("Invalid response from /api/auth/me");
+  }
+
+  return { user: payload.user };
+}
 
 function printCard(card: InsightCard) {
   console.log("\nInsight preview");
@@ -210,7 +306,9 @@ function oneLine(value: string) {
 
 function requireToken(token: string | undefined) {
   if (!token) {
-    throw new Error("Run agent-insights auth first or set AGENT_INSIGHTS_ACCESS_TOKEN.");
+    throw new Error(
+      "Run `agent-insights auth login` or set AGENT_INSIGHTS_ACCESS_TOKEN."
+    );
   }
 
   return token;

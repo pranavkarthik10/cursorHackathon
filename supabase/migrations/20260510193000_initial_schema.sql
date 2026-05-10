@@ -6,7 +6,7 @@ create table if not exists public.insights (
   problem text not null,
   environment text,
   fix text not null,
-  visibility text not null default 'private' check (visibility in ('private', 'team', 'org', 'public')),
+  visibility text not null default 'private' check (visibility in ('private', 'team', 'public')),
   created_by uuid references auth.users(id) on delete set null,
   embedding vector(1536),
   search_vector tsvector generated always as (
@@ -20,12 +20,6 @@ create table if not exists public.insights (
 
 create index if not exists insights_search_idx on public.insights using gin (search_vector);
 create index if not exists insights_created_at_idx on public.insights (created_at desc);
-
--- Re-align the check constraint on existing databases (no-op on a fresh schema).
-alter table public.insights drop constraint if exists insights_visibility_check;
-alter table public.insights
-  add constraint insights_visibility_check
-  check (visibility in ('private', 'team', 'org', 'public'));
 
 create or replace function public.search_insights(
   search_query text,
@@ -70,12 +64,7 @@ as $$
         when 'mine' then
           requesting_user_id is not null
           and insights.created_by = requesting_user_id
-        else
-          insights.visibility = 'public'
-          or (
-            requesting_user_id is not null
-            and insights.created_by = requesting_user_id
-          )
+        else insights.visibility in ('public', 'team')
       end
     )
     and (
@@ -90,23 +79,3 @@ $$;
 -- PostgREST / Supabase RPC (API uses service role; clients may use anon/authenticated later)
 grant execute on function public.search_insights(text, integer, text, uuid, text[])
   to anon, authenticated, service_role;
-
-alter table public.insights enable row level security;
-
-drop policy if exists "insights_select_authenticated" on public.insights;
-drop policy if exists "insights_select_anon_public" on public.insights;
-
-create policy "insights_select_authenticated"
-  on public.insights
-  for select
-  to authenticated
-  using (
-    visibility = 'public'
-    or created_by = auth.uid()
-  );
-
-create policy "insights_select_anon_public"
-  on public.insights
-  for select
-  to anon
-  using (visibility = 'public');

@@ -21,7 +21,13 @@ create table if not exists public.insights (
 create index if not exists insights_search_idx on public.insights using gin (search_vector);
 create index if not exists insights_created_at_idx on public.insights (created_at desc);
 
-create or replace function public.search_insights(search_query text, result_limit int default 5)
+create or replace function public.search_insights(
+  search_query text,
+  result_limit int default 5,
+  search_scope text default 'global',
+  requesting_user_id uuid default null,
+  filter_visibilities text[] default null
+)
 returns table (
   id uuid,
   title text,
@@ -42,10 +48,30 @@ as $$
     insights.environment,
     insights.fix,
     insights.visibility,
-    ts_rank_cd(insights.search_vector, plainto_tsquery('english', search_query)) as rank,
+    case
+      when trim(coalesce(search_query, '')) = '' then 0::real
+      else ts_rank_cd(insights.search_vector, plainto_tsquery('english', search_query))
+    end as rank,
     insights.created_at
   from public.insights
-  where insights.search_vector @@ plainto_tsquery('english', search_query)
+  where
+    case
+      when trim(coalesce(search_query, '')) = '' then true
+      else insights.search_vector @@ plainto_tsquery('english', search_query)
+    end
+    and (
+      case coalesce(nullif(trim(search_scope), ''), 'global')
+        when 'mine' then
+          requesting_user_id is not null
+          and insights.created_by = requesting_user_id
+        else insights.visibility in ('public', 'team')
+      end
+    )
+    and (
+      filter_visibilities is null
+      or cardinality(filter_visibilities) = 0
+      or insights.visibility = any(filter_visibilities)
+    )
   order by rank desc, insights.created_at desc
   limit result_limit;
 $$;

@@ -6,7 +6,7 @@ import { extractInsight } from "@/insight";
 
 const publishSchema = z.object({
   transcript: z.string().min(1),
-  visibility: z.enum(["private", "team", "public"]).default("private")
+  visibility: z.enum(["private", "team", "org", "public"]).default("private")
 });
 
 export async function POST(request: Request) {

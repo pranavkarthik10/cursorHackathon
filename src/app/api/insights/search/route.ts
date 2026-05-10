@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireBearerUser } from "@/lib/api-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
-const VIS = new Set(["private", "team", "public"]);
+const VIS = new Set(["private", "team", "org", "public"]);
 
 export async function GET(request: Request) {
   const auth = await requireBearerUser(request);
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       ? visParam
           .split(",")
           .map((v) => v.trim().toLowerCase())
-          .filter((v): v is "private" | "team" | "public" => VIS.has(v))
+          .filter((v): v is "private" | "team" | "org" | "public" => VIS.has(v))
       : null;
 
   const supabase = createSupabaseAdminClient();

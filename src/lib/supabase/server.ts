@@ -31,8 +31,9 @@ let adminClient: ReturnType<typeof createClient> | null = null;
 
 export function createSupabaseAdminClient() {
   if (!adminClient) {
+    const url = requireSupabaseProjectUrl();
     adminClient = createClient(
-      requireEnv("SUPABASE_URL"),
+      url,
       requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
       {
         auth: {
@@ -47,10 +48,33 @@ export function createSupabaseAdminClient() {
 }
 
 function requireEnv(name: string) {
-  const value = process.env[name];
+  const value = process.env[name]?.trim();
   if (!value) {
     throw new Error(`Missing required env var: ${name}`);
   }
 
   return value;
+}
+
+/** Same HTTPS project URL as in the Supabase dashboard (Settings → API → Project URL). */
+function requireSupabaseProjectUrl() {
+  const raw =
+    process.env.SUPABASE_URL?.trim() || process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!raw) {
+    throw new Error(
+      "Set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL to your project URL, e.g. https://abcd1234.supabase.co"
+    );
+  }
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error("not http(s)");
+    }
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    throw new Error(
+      `Invalid SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL: "${raw.slice(0, 48)}${raw.length > 48 ? "…" : ""}". Use the HTTPS Project URL (not the postgres connection string).`
+    );
+  }
 }

@@ -24,7 +24,7 @@ export function AuthForm() {
 
   return (
     <form
-      className="mt-8 space-y-4"
+      className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
         void signIn();
@@ -41,7 +41,7 @@ export function AuthForm() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"
-          className="h-11 bg-background/60 backdrop-blur-sm"
+          className="h-11 border-border/80 bg-secondary/40 shadow-none"
         />
       </div>
       <Button className="h-11 w-full" type="submit" disabled={!email.trim()}>

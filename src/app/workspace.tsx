@@ -1,11 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Globe, Loader2, Search, User } from "lucide-react";
+import Link from "next/link";
+import { Globe, Loader2, LogOut, Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +64,7 @@ export function DashboardClient({
   displayName?: string;
 }) {
   const supabase = createSupabaseBrowserClient();
-  const label = displayName?.trim() || email;
+  const label = displayName?.trim() || email.split("@")[0] || "Account";
 
   const [query, setQuery] = useState("");
   const queryRef = useRef(query);
@@ -108,221 +127,229 @@ export function DashboardClient({
 
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="flex flex-col gap-4 px-4 py-4 md:px-6">
-          <div className="flex flex-wrap items-center gap-3 md:gap-4">
-            <div className="flex min-w-0 flex-1 items-center gap-3 md:max-w-[200px] md:flex-none lg:max-w-none">
-              <Avatar className="size-10 shrink-0">
-                {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
-                <AvatarFallback className="text-xs">{profileInitials(email, displayName)}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <h1 className="truncate text-lg font-semibold tracking-tight">Insights</h1>
-                <p className="truncate text-xs text-muted-foreground">{label}</p>
-              </div>
-            </div>
+      <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-4 md:px-6">
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-2.5 text-sm font-semibold tracking-tight text-foreground"
+          >
+            <span className="flex size-8 items-center justify-center rounded-md bg-primary text-[10px] font-bold leading-none text-primary-foreground">
+              CAI
+            </span>
+            <span className="hidden sm:inline">Coding Agent Insights</span>
+            <span className="sm:hidden">Insights</span>
+          </Link>
 
-            <div className="order-last flex w-full min-w-0 md:order-none md:flex-1 md:justify-center">
-              <div className="flex w-full max-w-2xl items-center gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search
-                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden
-                  />
-                  <Input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        void fetchResults(query);
-                      }
-                    }}
-                    placeholder="Search errors, stack traces, symptoms…"
-                    className="h-10 pl-9"
-                    aria-label="Search insights"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() => void fetchResults(query)}
-                  disabled={loading}
-                  aria-label="Run search"
-                >
-                  {loading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-                </Button>
-              </div>
+          <div className="mx-auto flex min-w-0 max-w-xl flex-1 justify-center lg:max-w-2xl">
+            <div className="relative w-full">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    void fetchResults(query);
+                  }
+                }}
+                placeholder="Search errors, stack traces, symptoms…"
+                className="h-9 border-border/80 bg-secondary/40 pl-9 shadow-none backdrop-blur-sm"
+                aria-label="Search insights"
+              />
             </div>
+          </div>
 
+          <div className="flex shrink-0 items-center gap-2">
             <Button
-              variant="outline"
-              className="shrink-0 md:ml-auto"
-              onClick={() => supabase.auth.signOut()}
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="size-9 shrink-0 rounded-lg shadow-none"
+              onClick={() => void fetchResults(query)}
+              disabled={loading}
+              aria-label="Run search"
             >
-              Sign out
+              {loading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
             </Button>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3 md:border-0 md:pt-0">
-            <div
-              className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5"
-              role="group"
-              aria-label="Insight scope"
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-full ring-offset-background focus-visible:ring-2"
+                  aria-label="Account menu"
+                >
+                  <Avatar className="size-9">
+                    {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
+                    <AvatarFallback className="text-xs font-medium">
+                      {profileInitials(email, displayName)}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-medium leading-none">{label}</p>
+                    <p className="truncate text-xs leading-none text-muted-foreground">{email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer" onClick={() => void supabase.auth.signOut()}>
+                  <LogOut className="size-4" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 border-t border-border/60 px-4 py-2.5 md:px-6">
+          <ToggleGroup
+            type="single"
+            value={scope}
+            onValueChange={(v) => {
+              if (v) setScope(v as Scope);
+            }}
+            className="inline-flex h-9 items-center rounded-lg border border-border/80 bg-secondary/40 p-1"
+            size="sm"
+          >
+            <ToggleGroupItem value="global" aria-label="Global catalog" className="h-7 gap-1.5 rounded-md px-3 text-xs">
+              <Globe className="size-3.5" aria-hidden />
+              Global
+            </ToggleGroupItem>
+            <ToggleGroupItem value="mine" aria-label="My insights" className="h-7 gap-1.5 rounded-md px-3 text-xs">
+              <User className="size-3.5" aria-hidden />
+              Mine
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          <Separator orientation="vertical" className="hidden h-6 sm:block" />
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Visibility</span>
+            <Select
+              value={visibilityFilter}
+              onValueChange={(v) =>
+                setVisibilityFilter(v as "all" | "public" | "team" | "private")
+              }
             >
-              <button
-                type="button"
-                onClick={() => setScope("global")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                  scope === "global"
-                    ? "bg-accent text-accent-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Globe className="size-3.5" aria-hidden />
-                Global
-              </button>
-              <button
-                type="button"
-                onClick={() => setScope("mine")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                  scope === "mine"
-                    ? "bg-accent text-accent-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <User className="size-3.5" aria-hidden />
-                My insights
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <label htmlFor="visibility-filter" className="text-xs text-muted-foreground">
-                Visibility
-              </label>
-              <select
-                id="visibility-filter"
-                value={visibilityFilter}
-                onChange={(e) =>
-                  setVisibilityFilter(e.target.value as "all" | "public" | "team" | "private")
-                }
-                className="h-9 rounded-md border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="all">All</option>
-                <option value="public">Public</option>
-                <option value="team">Team</option>
-                <option value="private">Private</option>
-              </select>
-            </div>
-
-            <p className="w-full text-xs text-muted-foreground md:ml-auto md:w-auto">
-              {statusLine}
-              {scope === "global" ? " · Community catalog" : " · Your published insights"}
-            </p>
+              <SelectTrigger className="h-9 w-[132px] border-border/80 bg-secondary/40 text-xs shadow-none">
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="public">Public</SelectItem>
+                <SelectItem value="team">Team</SelectItem>
+                <SelectItem value="private">Private</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
+          <p className="ml-auto text-xs text-muted-foreground">
+            {statusLine}
+            <span className="text-border"> · </span>
+            {scope === "global" ? "Community" : "Your insights"}
+          </p>
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col gap-0 lg:flex-row">
-        <div className="min-h-[50vh] flex-1 overflow-auto border-b border-border lg:min-h-0 lg:border-b-0 lg:border-r">
-          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Title</th>
-                <th className="hidden px-4 py-3 font-medium sm:table-cell">Problem</th>
-                <th className="hidden px-4 py-3 font-medium md:table-cell">Environment</th>
-                <th className="px-4 py-3 font-medium">Visibility</th>
-                <th className="hidden px-4 py-3 font-medium lg:table-cell">Updated</th>
-                <th className="hidden px-4 py-3 text-right font-medium xl:table-cell">Match</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
-                    No insights match these filters. Try another search or switch scope.
-                  </td>
+      <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-0 lg:flex-row lg:gap-0">
+        <div className="min-h-[50vh] flex-1 overflow-auto px-4 py-4 md:px-6 lg:min-h-0 lg:border-r lg:border-border/60 lg:py-5">
+          <div className="overflow-hidden rounded-xl border border-border/80 bg-card/40">
+            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-border/80 bg-muted/50 text-xs font-medium text-muted-foreground">
+                  <th className="px-4 py-3">Title</th>
+                  <th className="hidden px-4 py-3 sm:table-cell">Problem</th>
+                  <th className="hidden px-4 py-3 md:table-cell">Environment</th>
+                  <th className="px-4 py-3">Visibility</th>
+                  <th className="hidden px-4 py-3 lg:table-cell">Updated</th>
+                  <th className="hidden px-4 py-3 text-right xl:table-cell">Match</th>
                 </tr>
-              ) : (
-                results.map((row) => (
-                  <tr
-                    key={row.id}
-                    className={cn(
-                      "cursor-pointer border-b border-border/80 transition-colors hover:bg-accent/40",
-                      selectedId === row.id && "bg-accent/50"
-                    )}
-                    onClick={() => setSelectedId(row.id)}
-                  >
-                    <td className="max-w-[220px] px-4 py-3 font-medium">
-                      <span className="line-clamp-2">{row.title}</span>
-                    </td>
-                    <td className="hidden max-w-xs px-4 py-3 text-muted-foreground sm:table-cell">
-                      <span className="line-clamp-2">{row.problem}</span>
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                      <span className="line-clamp-2">{row.environment ?? "—"}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge className="font-mono text-[10px] uppercase">{row.visibility}</Badge>
-                    </td>
-                    <td className="hidden whitespace-nowrap px-4 py-3 text-muted-foreground lg:table-cell">
-                      {formatDate(row.created_at)}
-                    </td>
-                    <td className="hidden px-4 py-3 text-right font-mono text-xs text-muted-foreground xl:table-cell">
-                      {row.rank != null && row.rank > 0 ? row.rank.toFixed(3) : "—"}
+              </thead>
+              <tbody>
+                {results.length === 0 && !loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-16 text-center text-sm text-muted-foreground">
+                      No insights match these filters. Try another search or switch scope.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  results.map((row) => (
+                    <tr
+                      key={row.id}
+                      className={cn(
+                        "cursor-pointer border-b border-border/50 transition-colors last:border-b-0 hover:bg-accent/50",
+                        selectedId === row.id && "bg-accent/60"
+                      )}
+                      onClick={() => setSelectedId(row.id)}
+                    >
+                      <td className="max-w-[220px] px-4 py-3 font-medium">
+                        <span className="line-clamp-2">{row.title}</span>
+                      </td>
+                      <td className="hidden max-w-xs px-4 py-3 text-muted-foreground sm:table-cell">
+                        <span className="line-clamp-2">{row.problem}</span>
+                      </td>
+                      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
+                        <span className="line-clamp-2">{row.environment ?? "—"}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge className="font-mono text-[10px] font-normal uppercase">{row.visibility}</Badge>
+                      </td>
+                      <td className="hidden whitespace-nowrap px-4 py-3 text-muted-foreground lg:table-cell">
+                        {formatDate(row.created_at)}
+                      </td>
+                      <td className="hidden px-4 py-3 text-right font-mono text-xs text-muted-foreground xl:table-cell">
+                        {row.rank != null && row.rank > 0 ? row.rank.toFixed(3) : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <aside className="w-full shrink-0 border-t border-border bg-card/30 lg:w-[380px] lg:border-t-0">
-          <div className="p-4 lg:sticky lg:top-28 lg:max-h-[calc(100svh-7rem)] lg:overflow-auto">
-            {selected ? (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Selected insight
-                  </p>
-                  <h2 className="mt-1 text-base font-semibold leading-snug">{selected.title}</h2>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Badge className="font-mono text-[10px] uppercase">{selected.visibility}</Badge>
-                    <span className="text-xs text-muted-foreground">{formatDate(selected.created_at)}</span>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Problem
-                  </h3>
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                    {selected.problem}
-                  </p>
-                </div>
-                {selected.environment ? (
+        <aside className="w-full shrink-0 px-4 py-4 md:px-6 lg:w-[400px] lg:py-5">
+          <Card className="border-border/80 bg-card/40 shadow-none lg:sticky lg:top-[7.25rem] lg:max-h-[calc(100svh-8rem)] lg:overflow-auto">
+            <div className="p-5">
+              {selected ? (
+                <div className="space-y-5">
                   <div>
-                    <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Environment
-                    </h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{selected.environment}</p>
+                    <p className="text-xs font-medium text-muted-foreground">Detail</p>
+                    <h2 className="mt-2 text-base font-semibold leading-snug tracking-tight">{selected.title}</h2>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Badge className="font-mono text-[10px] font-normal uppercase">{selected.visibility}</Badge>
+                      <span className="text-xs text-muted-foreground">{formatDate(selected.created_at)}</span>
+                    </div>
                   </div>
-                ) : null}
-                <div>
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Fix
-                  </h3>
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{selected.fix}</p>
+                  <Separator />
+                  <div>
+                    <h3 className="text-xs font-medium text-muted-foreground">Problem</h3>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                      {selected.problem}
+                    </p>
+                  </div>
+                  {selected.environment ? (
+                    <div>
+                      <h3 className="text-xs font-medium text-muted-foreground">Environment</h3>
+                      <p className="mt-2 text-sm text-muted-foreground">{selected.environment}</p>
+                    </div>
+                  ) : null}
+                  <div>
+                    <h3 className="text-xs font-medium text-muted-foreground">Fix</h3>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{selected.fix}</p>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Select a row to read the full problem and fix.
-              </p>
-            )}
-          </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Select a row to read the full problem and fix.</p>
+              )}
+            </div>
+          </Card>
         </aside>
       </div>
     </div>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Building2, Globe, Lock, LogOut, Search, User, Users } from "lucide-react";
+import { Building2, Globe, Lock, LogOut, Maximize2, Search, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,12 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -58,14 +64,14 @@ const VISIBILITY_META: Record<
     icon: Building2,
     dot: "bg-sky-500",
     pill: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20",
-    description: "Your organization"
+    description: "Org-wide sharing not wired yet — others cannot see your non-public rows"
   },
   team: {
     label: "Team",
     icon: Users,
     dot: "bg-amber-500",
     pill: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
-    description: "Your team"
+    description: "Team sharing not wired yet — others cannot see your non-public rows"
   },
   private: {
     label: "Private",
@@ -77,6 +83,64 @@ const VISIBILITY_META: Record<
 };
 
 const VISIBILITY_ORDER: Visibility[] = ["public", "org", "team", "private"];
+
+type MatchTier = "high" | "medium" | "low";
+
+function useMatchTierBounds(results: SearchResult[]) {
+  return useMemo(() => {
+    const positive = results
+      .map((r) => r.rank)
+      .filter((r): r is number => typeof r === "number" && r > 0);
+    if (positive.length === 0) return null;
+    return { min: Math.min(...positive), max: Math.max(...positive) };
+  }, [results]);
+}
+
+function rankToMatchTier(rank: number | undefined, bounds: { min: number; max: number } | null): MatchTier | null {
+  if (bounds == null || rank == null || rank <= 0) return null;
+  if (bounds.max === bounds.min) return "high";
+  const n = (rank - bounds.min) / (bounds.max - bounds.min);
+  if (n >= 2 / 3) return "high";
+  if (n >= 1 / 3) return "medium";
+  return "low";
+}
+
+const MATCH_TIER_META: Record<
+  MatchTier,
+  { label: string; dot: string; text: string }
+> = {
+  high: {
+    label: "High",
+    dot: "bg-emerald-500",
+    text: "text-emerald-700 dark:text-emerald-400"
+  },
+  medium: {
+    label: "Med",
+    dot: "bg-amber-500",
+    text: "text-amber-800 dark:text-amber-400"
+  },
+  low: {
+    label: "Low",
+    dot: "bg-zinc-400 dark:bg-zinc-500",
+    text: "text-muted-foreground"
+  }
+};
+
+function MatchTierIndicator({ tier }: { tier: MatchTier | null }) {
+  if (!tier) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  const meta = MATCH_TIER_META[tier];
+  return (
+    <span
+      className={cn("inline-flex items-center justify-end gap-1.5 text-xs font-medium", meta.text)}
+      title="How strongly this row matches your search, compared to other results in this list."
+    >
+      <span className={cn("size-1.5 shrink-0 rounded-full", meta.dot)} aria-hidden />
+      {meta.label}
+    </span>
+  );
+}
 
 function isVisibility(value: string): value is Visibility {
   return value === "public" || value === "org" || value === "team" || value === "private";
@@ -104,6 +168,44 @@ function VisibilityBadge({ value }: { value: string }) {
   );
 }
 
+function InsightSections({
+  insight,
+  density
+}: {
+  insight: SearchResult;
+  density: "sidebar" | "modal";
+}) {
+  const sectionLabel = density === "modal" ? "text-sm font-medium text-muted-foreground" : "text-xs font-medium text-muted-foreground";
+  const problemBody =
+    density === "modal"
+      ? "mt-2 whitespace-pre-wrap text-base leading-relaxed text-muted-foreground"
+      : "mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground";
+  const envBody = density === "modal" ? "mt-2 text-base text-muted-foreground" : "mt-2 text-sm text-muted-foreground";
+  const fixBody =
+    density === "modal"
+      ? "mt-2 whitespace-pre-wrap text-base leading-relaxed"
+      : "mt-2 whitespace-pre-wrap text-sm leading-relaxed";
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className={sectionLabel}>Problem</h3>
+        <p className={problemBody}>{insight.problem}</p>
+      </div>
+      {insight.environment ? (
+        <div>
+          <h3 className={sectionLabel}>Environment</h3>
+          <p className={envBody}>{insight.environment}</p>
+        </div>
+      ) : null}
+      <div>
+        <h3 className={sectionLabel}>Fix</h3>
+        <p className={fixBody}>{insight.fix}</p>
+      </div>
+    </div>
+  );
+}
+
 function profileInitials(email: string, displayName?: string): string {
   const name = displayName?.trim();
   if (name) {
@@ -126,7 +228,7 @@ export function DashboardClient({
   avatarUrl?: string;
   displayName?: string;
 }) {
-  const supabase = createSupabaseBrowserClient();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const label = displayName?.trim() || email.split("@")[0] || "Account";
 
   const [query, setQuery] = useState("");
@@ -137,6 +239,7 @@ export function DashboardClient({
   const [visibilityFilter, setVisibilityFilter] = useState<Visibility[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusLine, setStatusLine] = useState("");
 
@@ -195,7 +298,12 @@ export function DashboardClient({
     visibilityFilter.length > 0 && visibilityFilter.length < visibleVisibilities.length;
 
   const selected = results.find((r) => r.id === selectedId) ?? null;
+  const matchTierBounds = useMatchTierBounds(results);
+  const selectedMatchTier = selected ? rankToMatchTier(selected.rank, matchTierBounds) : null;
 
+  useEffect(() => {
+    if (!selected) setDetailModalOpen(false);
+  }, [selected]);
   return (
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur-xl">
@@ -348,7 +456,7 @@ export function DashboardClient({
                   <th className="hidden px-4 py-3 md:table-cell">Environment</th>
                   <th className="px-4 py-3">Visibility</th>
                   <th className="hidden px-4 py-3 lg:table-cell">Updated</th>
-                  <th className="hidden px-4 py-3 text-right xl:table-cell">Match</th>
+                  <th className="hidden px-4 py-3 text-right xl:table-cell">Relevance</th>
                 </tr>
               </thead>
               <tbody>
@@ -367,6 +475,11 @@ export function DashboardClient({
                         selectedId === row.id && "bg-accent/60"
                       )}
                       onClick={() => setSelectedId(row.id)}
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        setSelectedId(row.id);
+                        setDetailModalOpen(true);
+                      }}
                     >
                       <td className="max-w-[220px] px-4 py-3 font-medium">
                         <span className="line-clamp-2">{row.title}</span>
@@ -383,8 +496,8 @@ export function DashboardClient({
                       <td className="hidden whitespace-nowrap px-4 py-3 text-muted-foreground lg:table-cell">
                         {formatDate(row.created_at)}
                       </td>
-                      <td className="hidden px-4 py-3 text-right font-mono text-xs text-muted-foreground xl:table-cell">
-                        {row.rank != null && row.rank > 0 ? row.rank.toFixed(3) : "—"}
+                      <td className="hidden px-4 py-3 text-right xl:table-cell">
+                        <MatchTierIndicator tier={rankToMatchTier(row.rank, matchTierBounds)} />
                       </td>
                     </tr>
                   ))
@@ -399,31 +512,35 @@ export function DashboardClient({
             <div className="p-5">
               {selected ? (
                 <div className="space-y-5">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Detail</p>
-                    <h2 className="mt-2 text-base font-semibold leading-snug tracking-tight">{selected.title}</h2>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <VisibilityBadge value={selected.visibility} />
-                      <span className="text-xs text-muted-foreground">{formatDate(selected.created_at)}</span>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-muted-foreground">Detail</p>
+                      <h2 className="mt-2 text-base font-semibold leading-snug tracking-tight">{selected.title}</h2>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <VisibilityBadge value={selected.visibility} />
+                        <span className="text-xs text-muted-foreground">{formatDate(selected.created_at)}</span>
+                        {selectedMatchTier ? (
+                          <span className="text-xs text-muted-foreground">
+                            <span className="mr-1.5">·</span>
+                            <MatchTierIndicator tier={selectedMatchTier} />
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 gap-1.5 border-border/80 bg-secondary/30 shadow-none"
+                      onClick={() => setDetailModalOpen(true)}
+                      aria-label="Open insight in large window"
+                    >
+                      <Maximize2 className="size-3.5" aria-hidden />
+                      Expand
+                    </Button>
                   </div>
                   <Separator />
-                  <div>
-                    <h3 className="text-xs font-medium text-muted-foreground">Problem</h3>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                      {selected.problem}
-                    </p>
-                  </div>
-                  {selected.environment ? (
-                    <div>
-                      <h3 className="text-xs font-medium text-muted-foreground">Environment</h3>
-                      <p className="mt-2 text-sm text-muted-foreground">{selected.environment}</p>
-                    </div>
-                  ) : null}
-                  <div>
-                    <h3 className="text-xs font-medium text-muted-foreground">Fix</h3>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{selected.fix}</p>
-                  </div>
+                  <InsightSections insight={selected} density="sidebar" />
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Select a row to read the full problem and fix.</p>
@@ -432,6 +549,34 @@ export function DashboardClient({
           </Card>
         </aside>
       </div>
+
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="flex max-h-[min(92vh,920px)] flex-col gap-0 p-0 sm:max-w-4xl lg:max-w-6xl">
+          {selected ? (
+            <>
+              <DialogHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 py-5 pr-14">
+                <p className="text-xs font-medium text-muted-foreground">Insight</p>
+                <DialogTitle className="mt-2 text-left text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
+                  {selected.title}
+                </DialogTitle>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <VisibilityBadge value={selected.visibility} />
+                  <span className="text-xs text-muted-foreground">{formatDate(selected.created_at)}</span>
+                  {selectedMatchTier ? (
+                    <span className="text-xs text-muted-foreground">
+                      <span className="mr-1.5">·</span>
+                      <MatchTierIndicator tier={selectedMatchTier} />
+                    </span>
+                  ) : null}
+                </div>
+              </DialogHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <InsightSections insight={selected} density="modal" />
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

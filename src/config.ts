@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
-loadDotenv();
+loadDotenv({ path: ".env" });
+loadDotenv({ path: ".env.local", override: true });
+
+/** Used when no URL is set in env or ~/.agent-insights.json (local Next.js dev server). */
+export const DEFAULT_API_URL = "http://localhost:3000";
 
 const configSchema = z.object({
   apiUrl: z.string().url(),
@@ -24,15 +28,25 @@ export function loadConfig(configPath = defaultConfigPath): AgentInsightsConfig 
     ? JSON.parse(readFileSync(configPath, "utf8"))
     : {};
 
-  const rawUrl = process.env.AGENT_INSIGHTS_API_URL ?? fileConfig.apiUrl;
+  const rawUrl =
+    process.env.AGENT_INSIGHTS_API_URL ??
+    fileConfig.apiUrl ??
+    DEFAULT_API_URL;
+
   const apiUrl =
     typeof rawUrl === "string" && rawUrl.trim()
       ? normalizeApiUrl(rawUrl.trim())
-      : rawUrl;
+      : DEFAULT_API_URL;
+
+  const accessToken =
+    process.env.AGENT_INSIGHTS_ACCESS_TOKEN ?? fileConfig.accessToken;
 
   return configSchema.parse({
     apiUrl,
-    accessToken: process.env.AGENT_INSIGHTS_ACCESS_TOKEN ?? fileConfig.accessToken
+    accessToken:
+      typeof accessToken === "string" && accessToken.trim()
+        ? accessToken.trim()
+        : undefined
   });
 }
 

@@ -9,6 +9,7 @@
   },
   "include": [
     "src/cli.ts",
+    "src/cli-login-browser.ts",
     "src/config.ts",
     "src/insight.ts",
     "src/io.ts",

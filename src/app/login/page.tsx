@@ -2,8 +2,16 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AuthForm } from "./ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { safeRedirectPath } from "@/lib/safe-redirect-path";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
+  const postLoginPath = safeRedirectPath(next);
+
   return (
     <div className="flex min-h-svh flex-col items-center justify-center p-6">
       <Link
@@ -23,7 +31,7 @@ export default function LoginPage() {
           </p>
         </CardHeader>
         <CardContent className="pt-4">
-          <AuthForm />
+          <AuthForm postLoginPath={postLoginPath} />
         </CardContent>
       </Card>
     </div>

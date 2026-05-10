@@ -8,6 +8,7 @@ import {
   normalizeApiUrl,
   saveConfig
 } from "./config.js";
+import { loginViaBrowser } from "./cli-login-browser.js";
 import { extractInsight } from "./insight.js";
 import { readInput } from "./io.js";
 import type { InsightCard, InsightRow, Visibility } from "./types.js";
@@ -21,41 +22,109 @@ program
   .description("Publish and search distilled coding-agent session insights")
   .version("0.1.0");
 
-async function loginAction(options: { apiUrl?: string; token?: string }) {
-  const answers = await inquirer.prompt([
-    {
-      name: "apiUrl",
-      type: "input",
-      message: "App API URL (Next.js app serving /api)",
-      default: "http://localhost:3000",
-      when: !options.apiUrl
-    },
-    {
-      name: "accessToken",
-      message: "Supabase access token (JWT)",
-      type: "password",
-      mask: "*",
-      when: !options.token
+async function loginAction(options: {
+  apiUrl?: string;
+  token?: string;
+  noBrowser?: boolean;
+}) {
+  const resolved = loadConfig();
+  const apiUrl = normalizeApiUrl(options.apiUrl ?? resolved.apiUrl);
+  const envToken = process.env.AGENT_INSIGHTS_ACCESS_TOKEN?.trim();
+
+  if (options.token?.trim()) {
+    await finishLogin(apiUrl, options.token.trim(), {
+      persistTokenToFile: true,
+      sourceNote: "from --token"
+    });
+    return;
+  }
+
+  if (envToken) {
+    await finishLogin(apiUrl, envToken, {
+      persistTokenToFile: false,
+      sourceNote: "from AGENT_INSIGHTS_ACCESS_TOKEN (not written to config file)"
+    });
+    return;
+  }
+
+  const saved = resolved.accessToken?.trim();
+  if (saved) {
+    try {
+      await verifySession(apiUrl, saved);
+      saveConfig({ apiUrl, accessToken: saved });
+      console.log(`Already signed in — token in ${defaultConfigPath} is valid.`);
+      console.log(`API URL: ${apiUrl}`);
+      console.log("Session verified with /api/auth/me.");
+      return;
+    } catch {
+      if (!options.noBrowser) {
+        console.log(
+          "Saved token failed verification (wrong project, expired JWT, or API down). Starting browser sign-in…\n"
+        );
+      } else {
+        console.log(
+          "Saved token failed verification. Paste a new token below.\n"
+        );
+      }
     }
-  ]);
+  }
 
-  const apiUrl = normalizeApiUrl(options.apiUrl ?? answers.apiUrl);
-  const accessToken = options.token ?? answers.accessToken;
+  let accessToken: string | undefined;
+  let fromBrowser = false;
 
-  saveConfig({ apiUrl, accessToken });
+  if (options.noBrowser) {
+    const { accessToken: prompted } = await inquirer.prompt([
+      {
+        name: "accessToken",
+        message:
+          "Supabase access token (JWT), or set AGENT_INSIGHTS_ACCESS_TOKEN in .env",
+        type: "password",
+        mask: "*"
+      }
+    ]);
+    accessToken = prompted?.trim();
+  } else {
+    accessToken = await loginViaBrowser(apiUrl);
+    fromBrowser = true;
+  }
+
+  if (!accessToken?.trim()) {
+    throw new Error(
+      "No access token. Set AGENT_INSIGHTS_ACCESS_TOKEN, use browser login, or paste a token when prompted."
+    );
+  }
+
+  await finishLogin(apiUrl, accessToken, {
+    persistTokenToFile: true,
+    sourceNote: fromBrowser
+      ? "saved in config file (browser sign-in)"
+      : "saved in config file (pasted token)"
+  });
+}
+
+async function finishLogin(
+  apiUrl: string,
+  accessToken: string,
+  opts: { persistTokenToFile: boolean; sourceNote: string }
+) {
+  if (opts.persistTokenToFile) {
+    saveConfig({ apiUrl, accessToken });
+  } else {
+    saveConfig({ apiUrl });
+  }
 
   console.log(`Saved config to ${defaultConfigPath}`);
-  console.log(
-    "Tip: sign in at " +
-      new URL("/login", apiUrl).toString() +
-      ", then use a Supabase session access_token as the CLI credential."
-  );
+  console.log(`API URL: ${apiUrl}`);
+  console.log(`Access token: ${opts.sourceNote}.`);
 
   try {
     await verifySession(apiUrl, accessToken);
-  } catch {
+    console.log("Session verified with /api/auth/me.");
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.warn(`Could not verify the token: ${msg}`);
     console.warn(
-      "Could not verify the token with the API (offline or invalid token). Run `agent-insights doctor` after the app is up."
+      "Check that `npm run dev` is running, and that .env has SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY for the same Supabase project as the browser login."
     );
   }
 }
@@ -72,18 +141,22 @@ const authCmd = program
 
 authCmd
   .command("login", { isDefault: true })
-  .description("Save API URL and Supabase access token")
-  .option("--api-url <url>", "Coding Agent Insights app URL")
-  .option("--token <token>", "Supabase user access token (JWT)")
+  .description(
+    "Sign in via browser (default) or paste a token; uses http://localhost:3000 unless overridden"
+  )
+  .option("--api-url <url>", "Override API URL (default: env, config, or localhost)")
+  .option("--token <token>", "Supabase access token (JWT); skips browser")
+  .option("--no-browser", "Do not open a browser; paste a token instead")
   .action(loginAction);
 
 authCmd.command("logout").description("Remove the stored access token").action(logoutAction);
 
 program
   .command("init")
-  .description("Configure API URL and credentials (same as `auth login`)")
-  .option("--api-url <url>", "Coding Agent Insights app URL")
-  .option("--token <token>", "Supabase user access token")
+  .description("Alias for `auth login`")
+  .option("--api-url <url>", "Override API URL")
+  .option("--token <token>", "Supabase access token")
+  .option("--no-browser", "Paste a token instead of opening the browser")
   .action(loginAction);
 
 program
@@ -222,11 +295,17 @@ program
     console.log(`API URL: ${config.apiUrl}`);
 
     if (!config.accessToken) {
-      console.log("Access token: missing (run `agent-insights auth login`)");
+      console.log(
+        "Access token: missing (set AGENT_INSIGHTS_ACCESS_TOKEN in .env or run `agent-insights auth login`)"
+      );
       return;
     }
 
-    console.log("Access token: configured");
+    console.log(
+      process.env.AGENT_INSIGHTS_ACCESS_TOKEN
+        ? "Access token: from AGENT_INSIGHTS_ACCESS_TOKEN"
+        : "Access token: from config file"
+    );
 
     try {
       const me = await verifySession(config.apiUrl, config.accessToken);
@@ -254,11 +333,13 @@ async function verifySession(apiUrl: string, token: string | undefined) {
   });
   const payload = (await response.json()) as {
     error?: string;
+    debug?: string;
     user?: { id: string; email: string | null };
   };
 
   if (!response.ok) {
-    throw new Error(payload.error ?? `HTTP ${response.status}`);
+    const detail = [payload.error, payload.debug].filter(Boolean).join(" — ");
+    throw new Error(detail || `HTTP ${response.status}`);
   }
 
   if (!payload.user) {
@@ -307,7 +388,7 @@ function oneLine(value: string) {
 function requireToken(token: string | undefined) {
   if (!token) {
     throw new Error(
-      "Run `agent-insights auth login` or set AGENT_INSIGHTS_ACCESS_TOKEN."
+      "Run `agent-insights auth login` (browser sign-in), set AGENT_INSIGHTS_ACCESS_TOKEN, or use --token."
     );
   }
 

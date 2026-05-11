@@ -198,16 +198,13 @@ export function LandingPage() {
                 margin: 0,
               }}
             >
-              Hard-won fixes,
+              Solved once.
               <br />
-              <span style={{ color: C.accentBright }}>captured and shared.</span>
+              <span style={{ color: C.accentBright }}>Searchable forever.</span>
             </h1>
 
             <p style={{ marginTop: "24px", fontSize: "16px", lineHeight: 1.7, color: C.fgMuted, maxWidth: "460px" }}>
-              Coding-agent sessions are isolated. The next developer who hits the same
-              obscure error will spend hours rediscovering the same fix. Agent Insights
-              distills solved sessions into searchable cards for you, your team, or the
-              whole community.
+            Every hard-won fix disappears the moment a session ends. Agent Insights captures and shares those breakthroughs automatically — so the next developer finds the answer in seconds, not hours.
             </p>
 
             <div style={{ marginTop: "28px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px" }}>

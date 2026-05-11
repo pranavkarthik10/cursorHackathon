@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "type": "prompt",
+        "prompt": "Evaluate the session that just ended. Did it resolve a non-trivial coding problem — such as a runtime error, build failure, deploy failure, type error, version incompatibility, or an environment quirk that took multiple attempts to fix? If yes, you MUST reply with a short closing message that explicitly asks the user (in your own words) whether they want to publish this session to Agent Insights — for example a direct question like whether they would like to publish this fix to Agent Insights now. Remind them they can run `npx agent-insights publish`, use the Agent Insights skill, or say \"publish this session\" so you can help with the card. Keep it to two sentences max; do not repeat session details or stack traces. If the session was a trivial one-line edit, purely creative work, or did not yield a reusable fix, output nothing.",
+        "timeout": 15
+      }
+    ]
+  }
+}

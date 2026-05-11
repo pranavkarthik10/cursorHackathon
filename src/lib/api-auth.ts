@@ -4,6 +4,7 @@ type BearerError = {
   error: string;
   status: 401;
   debug?: string;
+  hint?: string;
 };
 
 type BearerOk = { user: { id: string; email?: string | null } };
@@ -16,7 +17,11 @@ export async function requireBearerUser(
   const token = raw?.trim();
 
   if (!token) {
-    return { error: "Missing bearer token", status: 401 };
+    return {
+      error: "Missing bearer token",
+      status: 401,
+      hint: "Run `agent-insights auth login`, set AGENT_INSIGHTS_ACCESS_TOKEN, or pass --token."
+    };
   }
 
   const supabase = createSupabaseAdminClient();
@@ -26,6 +31,8 @@ export async function requireBearerUser(
     return {
       error: "Invalid bearer token",
       status: 401,
+      hint:
+        "Supabase access tokens expire (often within an hour). Run `agent-insights auth login` again, or set a fresh AGENT_INSIGHTS_ACCESS_TOKEN.",
       debug:
         process.env.NODE_ENV === "development"
           ? (error?.message ??

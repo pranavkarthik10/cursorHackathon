@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, DM_Serif_Display, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,14 +12,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"]
 });
 
+const dmSerif = DM_Serif_Display({
+  variable: "--font-dm-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"]
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains",
+  subsets: ["latin"],
+  weight: ["400", "500"]
+});
+
 export const metadata: Metadata = {
-  title: "Coding Agent Insights",
-  description: "Reusable fixes distilled from coding agent sessions."
+  title: "Agent Insights",
+  description: "Turn solved coding-agent sessions into searchable fixes."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${dmSerif.variable} ${jetbrainsMono.variable}`}>
       <body>{children}</body>
     </html>
   );

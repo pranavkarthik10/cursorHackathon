@@ -57,7 +57,7 @@ function TBlank() { return <div style={{ height: "0.4em" }} />; }
 // ─── Search terminal ──────────────────────────────────────────────────────────
 function SearchTerminal() {
   return (
-    <TerminalWindow title="zsh — ~/projects/myapp">
+    <TerminalWindow title="zsh - ~/projects/myapp">
       <TL><T c={C.termGreen}>❯</T><T c={C.fg}> npx agent-insights search &quot;crypto Edge Runtime Next.js&quot;</T></TL>
       <TBlank />
       <TL><T c={C.termMuted}>  Found 2 insights</T></TL>
@@ -206,7 +206,7 @@ export function LandingPage() {
             <p style={{ marginTop: "24px", fontSize: "16px", lineHeight: 1.7, color: C.fgMuted, maxWidth: "460px" }}>
               Coding-agent sessions are isolated. The next developer who hits the same
               obscure error will spend hours rediscovering the same fix. Agent Insights
-              distills solved sessions into searchable cards — for you, your team, or the
+              distills solved sessions into searchable cards for you, your team, or the
               whole community.
             </p>
 
@@ -240,59 +240,98 @@ export function LandingPage() {
       <section id="how-it-works" style={{ maxWidth: "1100px", margin: "0 auto", padding: "72px 28px" }}>
         <Label>how it works</Label>
 
-        {(
-          [
-            {
-              n: "01",
-              title: "Privacy First",
-              body: "When you finish a coding-agent session, your agent automatically checks whether you're comfortable uploading a distilled insight from that chat. Nothing leaves your machine until you say yes.",
-              command: null,
-            },
-            {
-              n: "02",
-              title: "Preview Insights",
-              body: "Pass title, problem, environment, and fix as flags. Secrets are redacted locally. You review the card, pick visibility (private, team, org, or public), and confirm. Nothing is uploaded until you say yes.",
-              command: "npx agent-insights publish",
-            },
-            {
-              n: "03",
-              title: "Search and Retrieve",
-              body: "On your next task, the agent can search Agent Insights for you, either at the start when you're framing the problem, or mid-session when you're blocked, so prior fixes surface before you repeat the same debugging spiral.",
-              command: 'npx agent-insights search "git diverging branches abort failure"',
-            },
-          ] as const
-        ).map((step, idx) => (
-          <div
-            key={idx}
-            style={{ display: "grid", gridTemplateColumns: "56px 1fr", gap: "28px", alignItems: "start", padding: "40px 0", borderBottom: `1px solid ${C.border}` }}
-          >
-            <span
+        <UploadPipelineFlow prominent />
+
+        <div className="how-it-works-steps">
+          {(
+            [
+              {
+                n: "01",
+                title: "Privacy and preview",
+                body: "Ask first, preview the card and visibility, then confirm before any upload.",
+                command: null,
+              },
+              {
+                n: "02",
+                title: "Publish",
+                body: "Uploads to the platform where it ensures security, privacy, and validity are strong before adding to the global registry.",
+                command: "npx agent-insights publish",
+              },
+              {
+                n: "03",
+                title: "Search and retrieve",
+                body: "Search at kickoff or when you are stuck so prior fixes surface before you repeat the same spiral.",
+                command: 'npx agent-insights search "git diverging branches abort failure"',
+              },
+            ] as const
+          ).map((step, idx) => (
+            <div
+              key={idx}
               style={{
-                fontFamily: "var(--font-jetbrains), monospace",
-                fontSize: "11px",
-                fontWeight: 500,
-                color: C.accent,
-                letterSpacing: "0.08em",
-                paddingTop: "4px",
+                border: `1px solid ${C.border}`,
+                borderRadius: "10px",
+                padding: "22px 18px",
+                background: C.bgElevated,
+                display: "flex",
+                flexDirection: "column",
+                minWidth: 0,
+                boxSizing: "border-box",
               }}
             >
-              {step.n} /
-            </span>
-            <div>
-              <h3 style={{ fontSize: "17px", fontWeight: 600, letterSpacing: "-0.015em", color: C.fg, margin: 0 }}>{step.title}</h3>
-              <p style={{ marginTop: "10px", fontSize: "15px", lineHeight: 1.7, color: C.fgMuted, maxWidth: "560px" }}>{step.body}</p>
-              {step.command && (
-                <div style={{ marginTop: "14px", display: "inline-flex", alignItems: "center", gap: "8px", background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: "6px", padding: "9px 14px" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-jetbrains), monospace",
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  color: C.accent,
+                  letterSpacing: "0.08em",
+                }}
+              >
+                {step.n} /
+              </span>
+              <h3 style={{ fontSize: "17px", fontWeight: 600, letterSpacing: "-0.015em", color: C.fg, margin: "10px 0 0" }}>{step.title}</h3>
+              <p
+                style={{
+                  marginTop: "10px",
+                  flex: 1,
+                  fontSize: "14px",
+                  lineHeight: 1.55,
+                  color: C.fgMuted,
+                  minWidth: 0,
+                }}
+              >
+                {step.body}
+              </p>
+              {step.command ? (
+                <div
+                  style={{
+                    marginTop: "16px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    background: C.bgHighlight,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: "6px",
+                    padding: "9px 14px",
+                    alignSelf: "flex-start",
+                    maxWidth: "100%",
+                  }}
+                >
                   <span style={{ fontFamily: "var(--font-jetbrains), monospace", fontSize: "11px", color: C.termGreen }}>$</span>
-                  <code style={{ fontFamily: "var(--font-jetbrains), monospace", fontSize: "12.5px", color: C.fg }}>{step.command}</code>
+                  <code
+                    style={{
+                      fontFamily: "var(--font-jetbrains), monospace",
+                      fontSize: "11.5px",
+                      color: C.fg,
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {step.command}
+                  </code>
                 </div>
-              )}
+              ) : null}
             </div>
-          </div>
-        ))}
-
-        <div style={{ paddingTop: "48px", borderTop: `1px solid ${C.border}` }}>
-          <UploadPipelineFlow />
+          ))}
         </div>
       </section>
 
@@ -310,7 +349,7 @@ export function LandingPage() {
           </h2>
           <p style={{ marginTop: "18px", fontSize: "15px", lineHeight: 1.7, color: C.fgMuted, maxWidth: "380px" }}>
             Hybrid search finds the right fix even when you can only describe the symptom.
-            Your agent can run it for you at kickoff or when you're blocked — exact strings,
+            Your agent can run it for you at kickoff or when you are blocked: exact strings,
             keywords, and semantic meaning in one shot.
           </p>
         </div>
@@ -327,11 +366,11 @@ export function LandingPage() {
             Built for agents,<br />not just humans.
           </h2>
           <p style={{ marginTop: "18px", fontSize: "15px", lineHeight: 1.7, color: C.fgMuted, maxWidth: "400px" }}>
-            Use <strong style={{ color: C.fg, fontWeight: 600 }}>Install → AI Agent</strong> to copy an onboarding prompt for Claude Code, Cursor, OpenCode, or Codex — add{" "}
+            Use <strong style={{ color: C.fg, fontWeight: 600 }}>Install → AI Agent</strong> to copy an onboarding prompt for Claude Code, Cursor, OpenCode, or Codex, then add{" "}
             <Code>SKILL.md</Code> yourself; no init script.
           </p>
           <p style={{ marginTop: "12px", fontSize: "15px", lineHeight: 1.7, color: C.fgMuted, maxWidth: "400px" }}>
-            Or hit <Code>POST /api/insights/publish</Code> directly — pass a bearer token,
+            Or hit <Code>POST /api/insights/publish</Code> directly: pass a bearer token,
             get a published card. Works from any agent pipeline.
           </p>
         </div>
@@ -395,10 +434,18 @@ export function LandingPage() {
         .hero-grid    { display: grid; grid-template-columns: 1fr; gap: 60px; }
         .search-grid  { display: grid; grid-template-columns: 1fr; gap: 48px; }
         .agent-grid   { display: grid; grid-template-columns: 1fr; gap: 48px; }
+        .how-it-works-steps {
+          margin-top: 40px;
+          display: grid;
+          gap: 16px;
+          grid-template-columns: 1fr;
+          align-items: stretch;
+        }
         @media (min-width: 900px) {
           .hero-grid   { grid-template-columns: 1fr 440px !important; }
           .search-grid { grid-template-columns: 1fr 1fr !important; }
           .agent-grid  { grid-template-columns: 1fr 1fr !important; }
+          .how-it-works-steps { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
         }
         @media (max-width: 899px) {
           .hero-terminal { max-width: 100%; }

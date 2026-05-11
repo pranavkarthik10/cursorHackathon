@@ -5,8 +5,8 @@ export default function CliAuthPage() {
   return (
     <Suspense
       fallback={
-        <main className="mx-auto flex min-h-svh max-w-md items-center justify-center px-6 py-16">
-          <p className="text-sm text-muted-foreground">Loading…</p>
+        <main className="flex min-h-svh items-center justify-center bg-background px-6">
+          <p className="font-mono text-sm text-muted-foreground">Loading…</p>
         </main>
       }
     >

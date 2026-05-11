@@ -116,9 +116,9 @@ Preferred implementation order:
 
 ## Repository Workflow
 
-Commit and create pull requests for all meaningful changes.
+<!-- Commit and create pull requests for all meaningful changes.
 
-Do not use the `codex/` branch prefix for this repository. Use short descriptive branch names unless the user requests a specific name.
+Do not use the `codex/` branch prefix for this repository. Use short descriptive branch names unless the user requests a specific name. -->
 
 Before committing:
 
@@ -127,4 +127,4 @@ Before committing:
 - run relevant formatting, linting, or tests when available
 - include a concise commit message
 
-After committing, push the branch and create a pull request when remote access is configured.
+<!-- After committing, push the branch and create a pull request when remote access is configured. -->

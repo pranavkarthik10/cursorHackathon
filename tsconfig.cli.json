@@ -12,7 +12,6 @@
     "src/cli-login-browser.ts",
     "src/config.ts",
     "src/insight.ts",
-    "src/io.ts",
     "src/types.ts"
   ]
 }

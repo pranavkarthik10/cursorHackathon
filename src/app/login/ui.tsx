@@ -42,10 +42,14 @@ export function AuthForm({ postLoginPath = "/" }: { postLoginPath?: string }) {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"
-          className="h-11 border-border/80 bg-secondary/40 shadow-none"
+          className="h-11 border-border bg-secondary/80 shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-primary"
         />
       </div>
-      <Button className="h-11 w-full" type="submit" disabled={!email.trim()}>
+      <Button
+        className="h-11 w-full font-mono text-[13px] font-medium shadow-none"
+        type="submit"
+        disabled={!email.trim()}
+      >
         Send magic link
       </Button>
       {status ? (

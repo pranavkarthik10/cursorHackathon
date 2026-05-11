@@ -1,31 +1,5 @@
-create extension if not exists vector;
-
-create table if not exists public.insights (
-  id uuid primary key default gen_random_uuid(),
-  title text not null,
-  problem text not null,
-  environment text,
-  fix text not null,
-  visibility text not null default 'private' check (visibility in ('private', 'team', 'org', 'public')),
-  created_by uuid references auth.users(id) on delete set null,
-  embedding vector(1536),
-  search_vector tsvector generated always as (
-    setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(problem, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(environment, '')), 'C') ||
-    setweight(to_tsvector('english', coalesce(fix, '')), 'B')
-  ) stored,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists insights_search_idx on public.insights using gin (search_vector);
-create index if not exists insights_created_at_idx on public.insights (created_at desc);
-
--- Re-align the check constraint on existing databases (no-op on a fresh schema).
-alter table public.insights drop constraint if exists insights_visibility_check;
-alter table public.insights
-  add constraint insights_visibility_check
-  check (visibility in ('private', 'team', 'org', 'public'));
+-- Hybrid search: Postgres FTS plus optional pgvector cosine similarity when query_embedding is supplied.
+-- Rows need non-null embedding for semantic matches (set at publish time).
 
 drop function if exists public.search_insights(text, integer, text, uuid, text[]);
 
@@ -115,23 +89,3 @@ $$;
 
 grant execute on function public.search_insights(text, integer, text, uuid, text[], vector)
   to anon, authenticated, service_role;
-
-alter table public.insights enable row level security;
-
-drop policy if exists "insights_select_authenticated" on public.insights;
-drop policy if exists "insights_select_anon_public" on public.insights;
-
-create policy "insights_select_authenticated"
-  on public.insights
-  for select
-  to authenticated
-  using (
-    visibility = 'public'
-    or created_by = auth.uid()
-  );
-
-create policy "insights_select_anon_public"
-  on public.insights
-  for select
-  to anon
-  using (visibility = 'public');

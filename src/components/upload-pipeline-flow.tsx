@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import { Shield, ShieldCheck, Store, Upload } from "lucide-react";
 
 const C = {
   bgElevated: "#111318",
   bgHighlight: "#191c23",
-  fg: "#e8ecf4",
   fgMuted: "#7a8499",
+  fg: "#e8ecf4",
   accent: "#5980d4",
   accentBright: "#7aa3eb",
   border: "#1e2230",
+  borderBright: "#2a3048",
+  accentGlow: "rgba(89, 128, 212, 0.14)",
   termGreen: "#5abf7a",
   termAmber: "#c4953a",
   fgDim: "#3a404e",
@@ -18,52 +21,94 @@ const C = {
 
 const STEP_MS = 3400;
 
-/** Monochrome SVGs (Simple Icons, MIT) — styled with CSS filter on dark UI */
 const VERIFIER_LOGOS = [
   { src: "/logos/openai.svg", label: "OpenAI" },
   { src: "/logos/anthropic.svg", label: "Anthropic" },
   { src: "/logos/googlegemini.svg", label: "Gemini" },
 ] as const;
 
-const STEPS = [
+type Stage = {
+  id: string;
+  title: string;
+  subtitle: string;
+  /** Shown in the detail strip while this stage is active. */
+  panel: string;
+  /** Shown in the hover / focus box for this column. */
+  hover: string;
+  lucide?: LucideIcon;
+  logos?: boolean;
+};
+
+const STAGES: readonly Stage[] = [
   {
-    id: "upload" as const,
+    id: "upload",
     title: "Upload",
     subtitle: "Multi-step ingest",
-    icon: Upload,
-    body: "Session or export is distilled into a card layer by layer. Nothing ships until you confirm each step.",
+    panel:
+      "Session or export is distilled into a card layer by layer. Nothing ships until you confirm each step.",
+    hover:
+      "Layered ingest: distillation, preview, and explicit confirmations before the packet is accepted server-side.",
+    lucide: Upload,
   },
   {
-    id: "privacy" as const,
+    id: "privacy",
     title: "Privacy",
     subtitle: "Redaction",
-    icon: Shield,
-    body: "Secrets, tokens, emails, and repo paths are masked before preview while the card stays private to you.",
+    panel:
+      "Secrets, tokens, emails, and repo paths are masked before preview while the card is still private to you.",
+    hover:
+      "Automatic redaction for API keys, emails, and path-like strings so previews stay safe to share internally.",
+    lucide: Shield,
   },
   {
-    id: "security" as const,
+    id: "security",
     title: "Security",
     subtitle: "Abuse checks",
-    icon: ShieldCheck,
-    body: "We scan for prompt-injection patterns, hidden instructions, and hostile payloads before anything is indexed.",
+    panel:
+      "We scan for prompt-injection patterns, hidden instructions, and hostile payloads before anything is indexed.",
+    hover:
+      "Heuristics and classifiers flag jailbreaks, hidden system prompts, and executable-looking content before storage.",
+    lucide: ShieldCheck,
   },
   {
-    id: "verification" as const,
+    id: "verification",
     title: "Verification",
     subtitle: "Ensemble vote",
-    icon: null,
-    body: "Independent providers score coherence, safety, and usefulness. Ensemble voting decides marketplace eligibility.",
+    panel:
+      "Independent providers score coherence, safety, and usefulness. Ensemble voting decides marketplace eligibility.",
+    hover:
+      "Multiple models each score the card; aggregated votes gate whether a public listing is allowed.",
+    logos: true,
   },
   {
-    id: "marketplace" as const,
+    id: "marketplace",
     title: "Marketplace",
     subtitle: "Go live",
-    icon: Store,
-    body: "Cards that clear the vote become searchable. Borderline or rejected items stay team-only or private.",
+    panel:
+      "Cards that clear the vote become searchable. Borderline or rejected items stay team-only or private.",
+    hover:
+      "Approved cards join the shared index; rejects never appear in public search, only in scopes you control.",
+    lucide: Store,
   },
-] as const;
+];
 
-export function UploadPipelineFlow() {
+const GRID_GAP = 8;
+
+const gridCols = (n: number) =>
+  ({
+    display: "grid" as const,
+    gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`,
+    gap: GRID_GAP,
+    width: "100%" as const,
+    boxSizing: "border-box" as const,
+  });
+
+type UploadPipelineFlowProps = {
+  /** Larger chrome, headline, and glow (use at top of How it works). */
+  prominent?: boolean;
+};
+
+export function UploadPipelineFlow({ prominent = false }: UploadPipelineFlowProps) {
   const [phase, setPhase] = useState(0);
   const [skipTransition, setSkipTransition] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -80,13 +125,13 @@ export function UploadPipelineFlow() {
   useEffect(() => {
     if (reducedMotion) return;
     const id = window.setInterval(() => {
-      setPhase((p) => (p + 1) % STEPS.length);
+      setPhase((p) => (p + 1) % STAGES.length);
     }, STEP_MS);
     return () => window.clearInterval(id);
   }, [reducedMotion]);
 
   useEffect(() => {
-    if (prevPhase.current === STEPS.length - 1 && phase === 0) {
+    if (prevPhase.current === STAGES.length - 1 && phase === 0) {
       setSkipTransition(true);
       const raf = window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => setSkipTransition(false));
@@ -98,77 +143,185 @@ export function UploadPipelineFlow() {
   }, [phase]);
 
   const motionOn = !reducedMotion;
-  const active = STEPS[phase]!;
-  const lineY = 76;
+  const gc = gridCols(STAGES.length);
+  const active = STAGES[phase]!;
+  const railH = prominent ? 30 : 26;
+  const lineY = railH / 2;
+  const iconSz = prominent ? 32 : 22;
+  const logoBox = prominent ? 32 : 26;
+  const logoImg = prominent ? 16 : 15;
 
   return (
     <div
       className="upload-pipeline-root"
       style={{
-        marginTop: "36px",
-        padding: "28px 22px 26px",
-        borderRadius: "10px",
-        border: `1px solid ${C.border}`,
-        background: `linear-gradient(165deg, ${C.bgElevated} 0%, ${C.bgHighlight} 100%)`,
+        marginTop: prominent ? "10px" : "16px",
+        width: "100%",
+        maxWidth: "100%",
+        boxSizing: "border-box",
+        padding: prominent ? "28px 22px 26px" : "22px 18px 20px",
+        borderRadius: prominent ? "14px" : "10px",
+        border: prominent ? `1px solid ${C.borderBright}` : `1px solid ${C.border}`,
+        background: prominent
+          ? `linear-gradient(165deg, ${C.bgElevated} 0%, ${C.bgHighlight} 55%, #141822 100%)`
+          : `linear-gradient(165deg, ${C.bgElevated} 0%, ${C.bgHighlight} 100%)`,
+        boxShadow: prominent
+          ? `0 0 0 1px rgba(122, 163, 235, 0.08), 0 0 48px ${C.accentGlow}, 0 24px 48px rgba(0,0,0,0.35)`
+          : undefined,
         position: "relative",
-        overflow: "hidden",
       }}
     >
-      <p
-        style={{
-          fontFamily: "var(--font-jetbrains), monospace",
-          fontSize: "11px",
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: C.accent,
-          margin: "0 0 6px 0",
-        }}
-      >
-        // publish pipeline
-      </p>
-      <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.55, color: C.fgMuted, maxWidth: "720px" }}>
-        Horizontal path from raw session to marketplace: the insight packet travels through privacy, security, a
-        multi-model vote, then listing.
-      </p>
+      {prominent ? (
+        <>
+        </>
+      ) : null}
 
-      <div
-        className="upload-pipeline-scroll"
-        style={{
-          marginTop: "22px",
-          overflowX: "auto",
-          overflowY: "hidden",
-          paddingBottom: "4px",
-          WebkitOverflowScrolling: "touch",
-        }}
-      >
-        <div
-          className="upload-pipeline-track-inner"
-          style={{
-            minWidth: "min(100%, 720px)",
-            width: "100%",
-            maxWidth: "900px",
-            margin: "0 auto",
-            position: "relative",
-            padding: "0 20px 8px",
-          }}
-        >
-          {/* horizontal rail */}
+      <div style={{ marginTop: prominent ? "22px" : "18px", position: "relative", width: "100%" }}>
+        {/* Icons + titles (hover / focus box per column) */}
+        <div role="list" aria-label="Publish pipeline stages" style={{ ...gc, marginBottom: "8px" }}>
+          {STAGES.map((stage, i) => {
+            const isActive = motionOn && phase === i;
+            const isPassed = motionOn && phase > i;
+            const tone = isActive ? C.accentBright : isPassed ? C.termGreen : C.fgMuted;
+            const Lucide = stage.lucide;
+            return (
+              <div
+                key={stage.id}
+                role="listitem"
+                className="upload-pipeline-step"
+                tabIndex={0}
+                style={{
+                  position: "relative",
+                  textAlign: "center",
+                  minWidth: 0,
+                  padding: "6px 4px 4px",
+                  borderRadius: "8px",
+                  outline: "none",
+                  transition: "background 0.25s",
+                }}
+              >
+                <div
+                  className="upload-pipeline-tip"
+                  role="tooltip"
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    bottom: "100%",
+                    transform: "translateX(-50%)",
+                    marginBottom: "8px",
+                    minWidth: "min(240px, 52vw)",
+                    maxWidth: "260px",
+                    padding: "10px 12px",
+                    fontSize: "12px",
+                    lineHeight: 1.45,
+                    color: C.fg,
+                    textAlign: "left",
+                    background: C.bgElevated,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: "8px",
+                    boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
+                    opacity: 0,
+                    visibility: "hidden" as const,
+                    pointerEvents: "none" as const,
+                    zIndex: 30,
+                    transition: "opacity 0.15s ease, visibility 0.15s ease",
+                  }}
+                >
+                  {stage.hover}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: prominent ? "44px" : "38px",
+                    marginBottom: "6px",
+                  }}
+                >
+                  {stage.logos ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                      {VERIFIER_LOGOS.map((logo) => (
+                        <span
+                          key={logo.src}
+                          title={logo.label}
+                          className="upload-pipeline-model-logo"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: `${logoBox}px`,
+                            height: `${logoBox}px`,
+                            borderRadius: "6px",
+                            border: `1px solid ${isActive ? `${C.accent}55` : C.border}`,
+                            background: isActive ? "rgba(89,128,212,0.12)" : "rgba(255,255,255,0.03)",
+                            opacity: isActive ? 1 : isPassed ? 0.95 : 0.55,
+                            transition: "opacity 0.35s, border-color 0.35s, background 0.35s",
+                          }}
+                        >
+                          <img src={logo.src} alt="" width={logoImg} height={logoImg} style={{ objectFit: "contain" }} />
+                        </span>
+                      ))}
+                    </div>
+                  ) : Lucide ? (
+                    <Lucide
+                      size={iconSz}
+                      strokeWidth={1.75}
+                      style={{ color: tone, flexShrink: 0, transition: "color 0.35s" }}
+                      aria-hidden
+                    />
+                  ) : null}
+                </div>
+
+                <h4
+                  style={{
+                    margin: 0,
+                    fontSize: prominent ? "18px" : "12.5px",
+                    fontWeight: 600,
+                    letterSpacing: "-0.02em",
+                    color: isActive ? C.fg : C.fgMuted,
+                    lineHeight: 1.25,
+                    transition: "color 0.35s",
+                  }}
+                >
+                  {stage.title}
+                </h4>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontFamily: "var(--font-jetbrains), monospace",
+                    fontSize: "12px",
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: isActive ? C.termAmber : C.fgDim,
+                    transition: "color 0.35s",
+                  }}
+                >
+                  {isActive ? "active" : stage.subtitle}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Rail, orb, and nodes share one track aligned to the grid above */}
+        <div style={{ position: "relative", width: "100%", height: railH, boxSizing: "border-box" }}>
           <div
             aria-hidden
             style={{
               position: "absolute",
-              left: "20px",
-              right: "20px",
+              left: 0,
+              right: 0,
               top: lineY,
               height: "2px",
               borderRadius: "1px",
-              background: `linear-gradient(90deg, ${C.border} 0%, ${C.accent}40 50%, ${C.border} 100%)`,
               transform: "translateY(-50%)",
+              background: `linear-gradient(90deg, ${C.border} 0%, ${C.accent}40 50%, ${C.border} 100%)`,
               pointerEvents: "none",
+              zIndex: 0,
             }}
           />
 
-          {/* traveling orb */}
           {motionOn && (
             <div
               className="upload-pipeline-orb"
@@ -176,12 +329,14 @@ export function UploadPipelineFlow() {
               style={{
                 position: "absolute",
                 top: lineY,
-                left: `calc(20px + (100% - 40px) * ${(phase + 0.5) / STEPS.length})`,
-                width: "16px",
-                height: "16px",
+                left: `${((phase + 0.5) / STAGES.length) * 100}%`,
+                width: prominent ? "16px" : "14px",
+                height: prominent ? "16px" : "14px",
                 borderRadius: "50%",
-                background: `radial-gradient(circle at 35% 30%, ${C.accentBright}, ${C.accent})`,
-                boxShadow: `0 0 0 3px rgba(89,128,212,0.25), 0 0 22px rgba(122,163,235,0.45)`,
+                background: "radial-gradient(circle at 35% 30%, #fff4b8, #c9a010)",
+                boxShadow: prominent
+                  ? "0 0 0 4px rgba(212, 175, 55, 0.4), 0 0 28px rgba(255, 214, 90, 0.55)"
+                  : "0 0 0 3px rgba(212, 175, 55, 0.32), 0 0 20px rgba(255, 210, 80, 0.48)",
                 transform: "translate(-50%, -50%)",
                 transition: skipTransition ? "none" : "left 0.85s cubic-bezier(0.33, 1, 0.68, 1)",
                 zIndex: 3,
@@ -191,140 +346,32 @@ export function UploadPipelineFlow() {
           )}
 
           <div
-            role="list"
-            aria-label="Publish pipeline stages"
             style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${STEPS.length}, minmax(0, 1fr))`,
-              gap: "6px",
-              position: "relative",
-              zIndex: 1,
+              ...gc,
+              position: "absolute",
+              inset: 0,
+              alignItems: "center",
+              height: "100%",
+              margin: 0,
+              pointerEvents: "none",
             }}
           >
-            {STEPS.map((step, i) => {
+            {STAGES.map((stage, i) => {
               const isActive = motionOn && phase === i;
               const isPassed = motionOn && phase > i;
-              const LucideIcon = step.icon;
-
               return (
-                <div
-                  key={step.id}
-                  role="listitem"
-                  style={{
-                    textAlign: "center",
-                    minWidth: 0,
-                    padding: "4px 2px 0",
-                  }}
-                >
-                  <div
+                <div key={`${stage.id}-dot`} style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+                  <span
                     style={{
-                      minHeight: "44px",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      gap: "6px",
-                      marginBottom: "10px",
+                      width: "10px",
+                      height: "10px",
+                      borderRadius: "50%",
+                      background: isActive ? C.accentBright : isPassed ? C.termGreen : C.bgHighlight,
+                      border: `2px solid ${isActive ? C.accentBright : isPassed ? C.termGreen : C.border}`,
+                      boxShadow: isActive ? `0 0 12px rgba(122,163,235,0.45)` : "none",
+                      transition: "background 0.35s, border-color 0.35s, box-shadow 0.35s",
                     }}
-                  >
-                    {step.id === "verification" ? (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "8px",
-                          height: "28px",
-                        }}
-                      >
-                        {VERIFIER_LOGOS.map((logo) => (
-                          <span
-                            key={logo.src}
-                            title={logo.label}
-                            className="upload-pipeline-model-logo"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              width: "26px",
-                              height: "26px",
-                              borderRadius: "6px",
-                              background: isActive ? "rgba(89,128,212,0.15)" : "rgba(255,255,255,0.04)",
-                              border: `1px solid ${isActive ? `${C.accent}55` : C.border}`,
-                              transition: "background 0.35s, border-color 0.35s, opacity 0.35s",
-                              opacity: isActive ? 1 : isPassed ? 0.95 : 0.55,
-                            }}
-                          >
-                            <img
-                              src={logo.src}
-                              alt=""
-                              width={16}
-                              height={16}
-                              style={{ objectFit: "contain" }}
-                            />
-                          </span>
-                        ))}
-                      </div>
-                    ) : LucideIcon ? (
-                      <LucideIcon
-                        size={22}
-                        strokeWidth={1.75}
-                        style={{
-                          color: isActive ? C.accentBright : isPassed ? C.termGreen : C.fgMuted,
-                          flexShrink: 0,
-                          transition: "color 0.35s",
-                        }}
-                        aria-hidden
-                      />
-                    ) : null}
-                  </div>
-
-                  <h4
-                    style={{
-                      margin: 0,
-                      fontSize: "12.5px",
-                      fontWeight: 600,
-                      letterSpacing: "-0.02em",
-                      color: isActive ? C.fg : C.fgMuted,
-                      lineHeight: 1.25,
-                      transition: "color 0.35s",
-                    }}
-                  >
-                    {step.title}
-                  </h4>
-                  <p
-                    style={{
-                      margin: "3px 0 0",
-                      fontFamily: "var(--font-jetbrains), monospace",
-                      fontSize: "9px",
-                      letterSpacing: "0.04em",
-                      textTransform: "uppercase",
-                      color: isActive ? C.termAmber : C.fgDim,
-                      transition: "color 0.35s",
-                    }}
-                  >
-                    {isActive ? "active" : step.subtitle}
-                  </p>
-
-                  {/* node on rail */}
-                  <div style={{ height: "28px", position: "relative", marginTop: "4px" }}>
-                    <span
-                      style={{
-                        position: "absolute",
-                        left: "50%",
-                        top: "50%",
-                        transform: "translate(-50%, -50%)",
-                        width: "10px",
-                        height: "10px",
-                        borderRadius: "50%",
-                        background: isActive ? C.accentBright : isPassed ? C.termGreen : C.bgHighlight,
-                        border: `2px solid ${isActive ? C.accentBright : isPassed ? C.termGreen : C.border}`,
-                        boxShadow: isActive ? `0 0 12px rgba(122,163,235,0.45)` : "none",
-                        transition: "background 0.35s, border-color 0.35s, box-shadow 0.35s",
-                        zIndex: 2,
-                      }}
-                    />
-                  </div>
+                  />
                 </div>
               );
             })}
@@ -332,19 +379,19 @@ export function UploadPipelineFlow() {
         </div>
       </div>
 
-      {/* Active stage copy */}
+      {/* Active stage detail */}
       <div
         aria-live="polite"
         style={{
-          marginTop: "18px",
-          padding: "14px 16px",
-          borderRadius: "8px",
-          border: `1px solid ${motionOn && phase === 3 ? `${C.accent}40` : C.border}`,
-          background: "rgba(0,0,0,0.2)",
+          marginTop: prominent ? "24px" : "20px",
+          padding: prominent ? "16px 18px" : "12px 14px",
+          borderRadius: prominent ? "10px" : "8px",
+          border: `1px solid ${motionOn && STAGES[phase]?.id === "verification" ? `${C.accent}45` : C.border}`,
+          background: prominent ? "rgba(0,0,0,0.28)" : "rgba(0,0,0,0.18)",
         }}
       >
-        <p style={{ margin: 0, fontSize: "13.5px", lineHeight: 1.65, color: C.fgMuted }}>
-          <strong style={{ color: C.fg, fontWeight: 600 }}>{active.title}.</strong> {active.body}
+        <p style={{ margin: 0, fontSize: prominent ? "14px" : "13px", lineHeight: 1.6, color: C.fgMuted }}>
+          <strong style={{ color: C.fg, fontWeight: 600 }}>{active.title}.</strong> {active.panel}
         </p>
       </div>
 
@@ -352,6 +399,15 @@ export function UploadPipelineFlow() {
         .upload-pipeline-model-logo img {
           filter: brightness(0) invert(0.88);
           opacity: 0.95;
+        }
+        .upload-pipeline-step:hover,
+        .upload-pipeline-step:focus-visible {
+          background: rgba(89, 128, 212, 0.06);
+        }
+        .upload-pipeline-step:hover .upload-pipeline-tip,
+        .upload-pipeline-step:focus-visible .upload-pipeline-tip {
+          opacity: 1;
+          visibility: visible;
         }
         @media (prefers-reduced-motion: reduce) {
           .upload-pipeline-orb {

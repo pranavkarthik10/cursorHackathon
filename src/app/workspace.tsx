@@ -305,18 +305,14 @@ export function DashboardClient({
     if (!selected) setDetailModalOpen(false);
   }, [selected]);
   return (
-    <div className="flex min-h-svh flex-col">
-      <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-4 md:px-6">
+    <div className="flex min-h-svh flex-col bg-background text-foreground">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-md">
+        <div className="mx-auto flex h-[60px] max-w-[1600px] items-center gap-4 px-7 md:gap-6">
           <Link
             href="/"
-            className="flex shrink-0 items-center gap-2.5 text-sm font-semibold tracking-tight text-foreground"
+            className="flex shrink-0 items-center font-mono text-lg font-medium tracking-tight text-primary"
           >
-            <span className="flex size-8 items-center justify-center rounded-md bg-primary text-[10px] font-bold leading-none text-primary-foreground">
-              CAI
-            </span>
-            <span className="hidden sm:inline">Coding Agent Insights</span>
-            <span className="sm:hidden">Insights</span>
+            agent-insights
           </Link>
 
           <div className="mx-auto flex min-w-0 max-w-xl flex-1 justify-center lg:max-w-2xl">
@@ -334,7 +330,7 @@ export function DashboardClient({
                   }
                 }}
                 placeholder="Search errors, stack traces, symptoms…"
-                className="h-9 border-border/80 bg-secondary/40 pl-9 shadow-none backdrop-blur-sm"
+                className="h-10 border-border bg-secondary/80 pl-9 font-sans text-sm shadow-none placeholder:text-muted-foreground/80 focus-visible:ring-primary"
                 aria-label="Search insights"
               />
             </div>
@@ -346,10 +342,10 @@ export function DashboardClient({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-9 shrink-0 rounded-full ring-offset-background focus-visible:ring-2"
+                  className="size-10 shrink-0 rounded-full ring-offset-background focus-visible:ring-2 focus-visible:ring-primary"
                   aria-label="Account menu"
                 >
-                  <Avatar className="size-9">
+                  <Avatar className="size-10 border border-border">
                     {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
                     <AvatarFallback className="text-xs font-medium">
                       {profileInitials(email, displayName)}
@@ -374,14 +370,14 @@ export function DashboardClient({
           </div>
         </div>
 
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 border-t border-border/60 px-4 py-2.5 md:px-6">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 border-t border-border px-7 py-2.5">
           <ToggleGroup
             type="single"
             value={scope}
             onValueChange={(v) => {
               if (v) setScope(v as Scope);
             }}
-            className="inline-flex h-9 items-center rounded-lg border border-border/80 bg-secondary/40 p-1"
+            className="inline-flex h-9 items-center rounded-lg border border-border bg-secondary/80 p-1"
             size="sm"
           >
             <ToggleGroupItem value="global" aria-label="Global catalog" className="h-7 gap-1.5 rounded-md px-3 text-xs">
@@ -404,7 +400,7 @@ export function DashboardClient({
               onValueChange={(v) =>
                 setVisibilityFilter(v.filter(isVisibility) as Visibility[])
               }
-              className="inline-flex h-9 items-center rounded-lg border border-border/80 bg-secondary/40 p-1"
+              className="inline-flex h-9 items-center rounded-lg border border-border bg-secondary/80 p-1"
               size="sm"
               aria-label="Filter by visibility"
             >
@@ -446,11 +442,11 @@ export function DashboardClient({
       </header>
 
       <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-0 lg:flex-row lg:gap-0">
-        <div className="min-h-[50vh] flex-1 overflow-auto px-4 py-4 md:px-6 lg:min-h-0 lg:border-r lg:border-border/60 lg:py-5">
-          <div className="overflow-hidden rounded-xl border border-border/80 bg-card/40">
+        <div className="min-h-[50vh] flex-1 overflow-auto px-7 py-5 lg:min-h-0 lg:border-r lg:border-border lg:py-6">
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-border/80 bg-muted/50 text-xs font-medium text-muted-foreground">
+                <tr className="border-b border-border bg-secondary/60 text-xs font-medium text-muted-foreground">
                   <th className="px-4 py-3">Title</th>
                   <th className="hidden px-4 py-3 sm:table-cell">Problem</th>
                   <th className="hidden px-4 py-3 md:table-cell">Environment</th>
@@ -471,8 +467,8 @@ export function DashboardClient({
                     <tr
                       key={row.id}
                       className={cn(
-                        "cursor-pointer border-b border-border/50 transition-colors last:border-b-0 hover:bg-accent/50",
-                        selectedId === row.id && "bg-accent/60"
+                        "cursor-pointer border-b border-border/80 transition-colors last:border-b-0 hover:bg-secondary/60",
+                        selectedId === row.id && "bg-secondary/90"
                       )}
                       onClick={() => setSelectedId(row.id)}
                       onDoubleClick={(e) => {
@@ -507,14 +503,14 @@ export function DashboardClient({
           </div>
         </div>
 
-        <aside className="w-full shrink-0 px-4 py-4 md:px-6 lg:w-[400px] lg:py-5">
-          <Card className="border-border/80 bg-card/40 shadow-none lg:sticky lg:top-[7.25rem] lg:max-h-[calc(100svh-8rem)] lg:overflow-auto">
+        <aside className="w-full shrink-0 px-7 py-5 lg:w-[400px] lg:py-6">
+          <Card className="rounded-lg border-border bg-card shadow-none lg:sticky lg:top-[7.25rem] lg:max-h-[calc(100svh-8rem)] lg:overflow-auto">
             <div className="p-5">
               {selected ? (
                 <div className="space-y-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-muted-foreground">Detail</p>
+                      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-primary">// detail</p>
                       <h2 className="mt-2 text-base font-semibold leading-snug tracking-tight">{selected.title}</h2>
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <VisibilityBadge value={selected.visibility} />
@@ -531,7 +527,7 @@ export function DashboardClient({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="shrink-0 gap-1.5 border-border/80 bg-secondary/30 shadow-none"
+                      className="shrink-0 gap-1.5 border-border bg-secondary/80 font-mono text-xs shadow-none"
                       onClick={() => setDetailModalOpen(true)}
                       aria-label="Open insight in large window"
                     >
@@ -551,11 +547,11 @@ export function DashboardClient({
       </div>
 
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
-        <DialogContent className="flex max-h-[min(92vh,920px)] flex-col gap-0 p-0 sm:max-w-4xl lg:max-w-6xl">
+        <DialogContent className="flex max-h-[min(92vh,920px)] flex-col gap-0 border-border bg-card p-0 sm:max-w-4xl lg:max-w-6xl">
           {selected ? (
             <>
-              <DialogHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 py-5 pr-14">
-                <p className="text-xs font-medium text-muted-foreground">Insight</p>
+              <DialogHeader className="shrink-0 space-y-0 border-b border-border px-6 py-5 pr-14">
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-primary">// insight</p>
                 <DialogTitle className="mt-2 text-left text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
                   {selected.title}
                 </DialogTitle>

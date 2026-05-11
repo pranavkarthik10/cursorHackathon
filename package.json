@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "npm run build:cli && next build",
-    "build:cli": "tsc -p tsconfig.cli.json",
+    "build:cli": "tsc -p tsconfig.cli.json && chmod +x dist/cli.js",
     "dev": "next dev",
     "dev:cli": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",

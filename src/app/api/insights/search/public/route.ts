@@ -1,28 +1,19 @@
 import { NextResponse } from "next/server";
-import { requireBearerUser } from "@/lib/api-auth";
 import { queryEmbeddingForSearch } from "@/lib/embeddings";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const VIS = new Set(["private", "team", "org", "public"]);
 
+/**
+ * Public catalog search: only returns insights visible on the global catalog
+ * (same rows as an anonymous caller would get from `search_insights` with no user id).
+ * No authentication required.
+ */
 export async function GET(request: Request) {
-  const auth = await requireBearerUser(request);
-  if ("error" in auth) {
-    return NextResponse.json(
-      {
-        error: auth.error,
-        ...(auth.hint !== undefined ? { hint: auth.hint } : {}),
-        ...(auth.debug !== undefined ? { debug: auth.debug } : {})
-      },
-      { status: auth.status }
-    );
-  }
-
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
-  const scope = url.searchParams.get("scope") === "mine" ? "mine" : "global";
-  const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "25", 10);
-  const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 25, 1), 100);
+  const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "15", 10);
+  const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 15, 1), 50);
 
   const visParam = url.searchParams.get("visibility");
   const filter_visibilities =
@@ -39,8 +30,8 @@ export async function GET(request: Request) {
   const { data, error } = await supabase.rpc("search_insights", {
     search_query: q,
     result_limit: limit,
-    search_scope: scope,
-    requesting_user_id: auth.user.id,
+    search_scope: "global",
+    requesting_user_id: null,
     filter_visibilities:
       filter_visibilities && filter_visibilities.length > 0 ? filter_visibilities : null,
     query_embedding

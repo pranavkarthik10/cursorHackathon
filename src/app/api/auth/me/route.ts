@@ -17,6 +17,7 @@ export async function GET(request: Request) {
       return NextResponse.json(
         {
           error: auth.error,
+          ...(auth.hint !== undefined ? { hint: auth.hint } : {}),
           ...(auth.debug !== undefined ? { debug: auth.debug } : {})
         },
         { status: auth.status }

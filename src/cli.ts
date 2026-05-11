@@ -10,9 +10,149 @@ import {
   type AgentInsightsConfig
 } from "./config.js";
 import { loginViaBrowser } from "./cli-login-browser.js";
-import { buildStructuredInsight, extractInsight } from "./insight.js";
-import { readInput } from "./io.js";
+import { buildStructuredInsight } from "./insight.js";
+import {
+  isJwtExpired,
+  jwtExpiryIsoDate,
+  looksLikeJwt
+} from "./lib/jwt-expiry.js";
 import type { InsightCard, InsightRow, Visibility } from "./types.js";
+
+const CLI_FETCH_TIMEOUT_MS = Math.max(
+  3000,
+  Number.parseInt(process.env.AGENT_INSIGHTS_FETCH_TIMEOUT_MS ?? "20000", 10) || 20000
+);
+
+type ApiErrorPayload = {
+  error?: string;
+  hint?: string;
+  debug?: string;
+};
+
+function formatApiAuthFailure(payload: ApiErrorPayload): string {
+  const lines = [
+    payload.error ?? "Request failed",
+    payload.hint,
+    payload.debug ? `(debug) ${payload.debug}` : undefined
+  ].filter(Boolean);
+  return lines.join("\n");
+}
+
+async function fetchWithTimeout(
+  url: URL | string,
+  init: RequestInit = {},
+  timeoutMs = CLI_FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const href = typeof url === "string" ? url : url.href;
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    const msg = err instanceof Error ? err.message : String(err);
+    if (name === "AbortError" || msg.includes("aborted")) {
+      throw new Error(
+        `Request timed out after ${timeoutMs}ms (${href}). Start the dev server (npm run dev) or fix AGENT_INSIGHTS_API_URL.`
+      );
+    }
+    throw new Error(`Could not reach API (${href}): ${msg}`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function readJsonBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new Error(
+      `API returned non-JSON (HTTP ${response.status}). First bytes: ${text.slice(0, 180)}`
+    );
+  }
+}
+
+async function promptBrowserRelogin(apiUrl: string): Promise<string> {
+  if (!process.stdin.isTTY) {
+    throw new Error(
+      "Cannot open interactive login (stdin is not a TTY). Run `agent-insights auth login` manually."
+    );
+  }
+
+  const { confirm } = await inquirer.prompt<{ confirm: boolean }>([
+    {
+      type: "confirm",
+      name: "confirm",
+      message: "Sign in again in your browser now?",
+      default: true
+    }
+  ]);
+
+  if (!confirm) {
+    throw new Error("Sign-in cancelled.");
+  }
+
+  const accessToken = await loginViaBrowser(apiUrl);
+  await finishLogin(apiUrl, accessToken.trim(), {
+    persistTokenToFile: true,
+    sourceNote: "saved in config file (browser sign-in)"
+  });
+  return accessToken.trim();
+}
+
+/**
+ * If the stored token is a JWT with an expired `exp`, optionally prompt for browser login.
+ */
+async function resolveAccessTokenBeforeRequest(
+  apiUrl: string,
+  token: string
+): Promise<string> {
+  if (!looksLikeJwt(token) || !isJwtExpired(token)) {
+    return token;
+  }
+
+  const when = jwtExpiryIsoDate(token);
+  console.error(
+    when
+      ? `Saved access token expired at ${when} (JWT exp).`
+      : "Saved access token appears expired (JWT exp)."
+  );
+
+  if (process.stdin.isTTY) {
+    return promptBrowserRelogin(apiUrl);
+  }
+
+  throw new Error(
+    "Access token expired. Run `agent-insights auth login` or set a fresh AGENT_INSIGHTS_ACCESS_TOKEN."
+  );
+}
+
+async function fetchAuthenticatedWithRelogin<T extends ApiErrorPayload>(
+  apiUrl: string,
+  initialToken: string,
+  perform: (token: string) => Promise<Response>
+): Promise<{ response: Response; payload: T }> {
+  let token = initialToken;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await perform(token);
+    const payload = (await readJsonBody(response)) as T;
+
+    if (
+      response.ok ||
+      attempt === 1 ||
+      response.status !== 401 ||
+      !process.stdin.isTTY
+    ) {
+      return { response, payload };
+    }
+
+    console.error(formatApiAuthFailure(payload));
+    token = await promptBrowserRelogin(apiUrl);
+  }
+
+  throw new Error("Authentication failed after retry.");
+}
 
 const visibilitySchema = z.enum(["private", "team", "org", "public"]);
 
@@ -173,13 +313,12 @@ program
 program
   .command("publish")
   .description(
-    "Publish an insight: pipe a transcript, or pass --title/--problem/--fix (optional --environment)"
+    "Publish an insight: pass --title, --problem, and --fix (--environment optional)"
   )
-  .option("-f, --file <path>", "Read transcript from a file (transcript mode only)")
-  .option("--title <text>", "Structured insight title (requires --problem and --fix)")
-  .option("--problem <text>", "Structured problem description")
-  .option("--environment <text>", "Structured environment/stack (optional)")
-  .option("--fix <text>", "Structured fix")
+  .option("--title <text>", "Insight title")
+  .option("--problem <text>", "What broke and what error appeared")
+  .option("--environment <text>", "Stack, versions, platform (optional)")
+  .option("--fix <text>", "Exact steps that resolved it")
   .option(
     "-v, --visibility <visibility>",
     "private, team, org, or public",
@@ -189,7 +328,6 @@ program
   .option("-y, --yes", "Publish without interactive confirmation")
   .action(
     async (options: {
-      file?: string;
       visibility: string;
       dryRun?: boolean;
       yes?: boolean;
@@ -200,65 +338,27 @@ program
     }) => {
       const visibility = visibilitySchema.parse(options.visibility) as Visibility;
 
-      const structKeys = [
-        options.title !== undefined,
-        options.problem !== undefined,
-        options.fix !== undefined,
-        options.environment !== undefined
-      ].filter(Boolean).length;
-
-      const fullyStructured =
-        options.title !== undefined &&
-        options.problem !== undefined &&
-        options.fix !== undefined;
-
-      if (structKeys > 0 && !fullyStructured) {
+      if (!options.title || !options.problem || !options.fix) {
         throw new Error(
-          "Structured publish requires --title, --problem, and --fix together (optional --environment)."
+          "publish requires --title, --problem, and --fix (--environment is optional)."
         );
       }
 
-      if (fullyStructured && options.file) {
-        throw new Error("Do not use --file with structured publish; use transcript mode or structured flags only.");
-      }
+      const card: InsightCard = buildStructuredInsight({
+        title: options.title,
+        problem: options.problem,
+        environment: options.environment ?? "",
+        fix: options.fix,
+        visibility
+      });
 
-      let card: InsightCard;
-      let publishBody:
-        | { transcript: string; visibility: Visibility }
-        | {
-            title: string;
-            problem: string;
-            environment: string;
-            fix: string;
-            visibility: Visibility;
-          };
-
-      if (fullyStructured) {
-        card = buildStructuredInsight({
-          title: options.title!,
-          problem: options.problem!,
-          environment: options.environment ?? "",
-          fix: options.fix!,
-          visibility
-        });
-        publishBody = {
-          title: card.title,
-          problem: card.problem,
-          environment: card.environment,
-          fix: card.fix,
-          visibility: card.visibility
-        };
-      } else {
-        const input = await readInput(options.file);
-        if (!input.trim()) {
-          throw new Error(
-            "No content provided. Pipe a transcript, use --file, or pass --title, --problem, and --fix."
-          );
-        }
-
-        card = extractInsight(input, visibility);
-        publishBody = { transcript: input, visibility: card.visibility };
-      }
+      const publishBody = {
+        title: card.title,
+        problem: card.problem,
+        environment: card.environment,
+        fix: card.fix,
+        visibility: card.visibility
+      };
 
       printCard(card);
 
@@ -284,54 +384,57 @@ program
       }
 
       const config = loadConfig();
-      const response = await fetch(
-        new URL("/api/insights/publish", config.apiUrl),
-        {
+      let accessToken = requireToken(config.accessToken);
+      accessToken = await resolveAccessTokenBeforeRequest(config.apiUrl, accessToken);
+
+      const { response, payload } = await fetchAuthenticatedWithRelogin<{
+        error?: string;
+        hint?: string;
+        insight?: { id: string; title: string };
+      }>(config.apiUrl, accessToken, (token) =>
+        fetchWithTimeout(new URL("/api/insights/publish", config.apiUrl), {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            authorization: `Bearer ${requireToken(config.accessToken)}`
+            authorization: `Bearer ${token}`
           },
           body: JSON.stringify(publishBody)
-        }
+        })
       );
-      const payload = (await response.json()) as {
-        error?: string;
-        insight?: { id: string; title: string };
-      };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Publish failed");
+        throw new Error(formatApiAuthFailure(payload) || "Publish failed");
       }
 
-      console.log(
-        `Published insight ${payload.insight!.id}: ${payload.insight!.title}`
-      );
+      if (!payload.insight) {
+        throw new Error("Publish succeeded but the API response did not include an insight id.");
+      }
+
+      console.log(`Published insight ${payload.insight.id}: ${payload.insight.title}`);
     }
   );
 
 program
   .command("search")
   .description("Search for prior insights from an error or problem description")
-  .argument("[query]", "Search query")
-  .option("-f, --file <path>", "Read query from a file")
+  .argument("<query>", "Error message, symptom, or short description")
   .option("-l, --limit <number>", "Number of results", "5")
   .action(
     async (
-      query: string | undefined,
-      options: { file?: string; limit: string }
+      query: string,
+      options: { limit: string }
     ) => {
-      const fileInput = await readInput(options.file);
-      const searchQuery = (query ?? fileInput).trim();
+      const searchQuery = query.trim();
 
       if (!searchQuery) {
-        throw new Error(
-          "No search query provided. Pass text, --file, or stdin."
-        );
+        throw new Error("No search query provided.");
       }
 
       const limit = Number.parseInt(options.limit, 10);
       const config = loadConfig();
+      let accessToken = requireToken(config.accessToken);
+      accessToken = await resolveAccessTokenBeforeRequest(config.apiUrl, accessToken);
+
       const url = new URL("/api/insights/search", config.apiUrl);
       url.searchParams.set("q", searchQuery);
       url.searchParams.set(
@@ -339,18 +442,20 @@ program
         String(Number.isFinite(limit) ? limit : 5)
       );
 
-      const response = await fetch(url, {
-        headers: {
-          authorization: `Bearer ${requireToken(config.accessToken)}`
-        }
-      });
-      const payload = (await response.json()) as {
+      const { response, payload } = await fetchAuthenticatedWithRelogin<{
         error?: string;
+        hint?: string;
         results?: InsightRow[];
-      };
+      }>(config.apiUrl, accessToken, (token) =>
+        fetchWithTimeout(url, {
+          headers: {
+            authorization: `Bearer ${token}`
+          }
+        })
+      );
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Search failed");
+        throw new Error(formatApiAuthFailure(payload) || "Search failed");
       }
 
       printResults((payload.results ?? []) as InsightRow[]);
@@ -398,18 +503,18 @@ async function verifySession(apiUrl: string, token: string | undefined) {
     throw new Error("Missing access token");
   }
 
-  const response = await fetch(new URL("/api/auth/me", apiUrl), {
+  const response = await fetchWithTimeout(new URL("/api/auth/me", apiUrl), {
     headers: { authorization: `Bearer ${token}` }
   });
-  const payload = (await response.json()) as {
+  const payload = (await readJsonBody(response)) as {
     error?: string;
+    hint?: string;
     debug?: string;
     user?: { id: string; email: string | null };
   };
 
   if (!response.ok) {
-    const detail = [payload.error, payload.debug].filter(Boolean).join(" — ");
-    throw new Error(detail || `HTTP ${response.status}`);
+    throw new Error(formatApiAuthFailure(payload) || `HTTP ${response.status}`);
   }
 
   if (!payload.user) {

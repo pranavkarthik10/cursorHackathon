@@ -308,7 +308,7 @@ function TerminalChrome({
         </div>
         <div className="ml-auto flex shrink-0 items-center">{headerRight}</div>
       </div>
-      <div className="px-5 py-[18px]">{children}</div>
+      <div className="px-5 py-[18px] overflow-hidden" style={{ height: "340px" }}>{children}</div>
       {footer}
     </div>
   );
